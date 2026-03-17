@@ -70,19 +70,18 @@ function buildCaption() {
   const location = [address, city].filter(Boolean).join(", ");
   const priceFormatted = formatPrice(priceRaw);
 
-  const specs = [];
-  if (priceFormatted) specs.push(`Vraagprijs EUR ${priceFormatted}`);
-  if (area) specs.push(`Woonoppervlak ${area} m2`);
-  if (rooms) specs.push(`Kamers ${rooms}`);
-  if (label) specs.push(`Energielabel ${label}`);
+  const detailLines = [];
+  if (priceFormatted) detailLines.push(`💶 Vraagprijs: EUR ${priceFormatted}`);
+  if (area) detailLines.push(`📐 Woonoppervlak: ${area} m2`);
+  if (rooms) detailLines.push(`🛏️ Kamers: ${rooms}`);
+  if (label) detailLines.push(`⚡ Energielabel: ${label}`);
+  if (url) detailLines.push(`🔗 Bekijk de brochure: ${url}`);
 
   const lines = [
     headerLine,
     location ? `📍 ${location}` : null,
     headline,
-    location || "Plan snel je bezichtiging",
-    specs.length ? `Kenmerken: ${specs.join(" | ")}` : null,
-    url ? `Bekijk de brochure: ${url}` : null,
+    ...detailLines,
     "",
     cta,
     "",
