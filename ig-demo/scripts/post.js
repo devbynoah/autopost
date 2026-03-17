@@ -78,6 +78,7 @@ function buildCaption() {
 
   const lines = [
     headerLine,
+    location ? `📍 ${location}` : null,
     headline,
     location || "Plan snel je bezichtiging",
     specs.length ? `Kenmerken: ${specs.join(" | ")}` : null,
@@ -87,10 +88,13 @@ function buildCaption() {
     "",
     phone ? `T: ${phone}` : null,
     email ? `E: ${email}` : null,
+    "",
     hashtags,
-  ].filter(Boolean);
+  ];
 
-  return lines.join("\n");
+  return lines
+    .filter((line) => line !== null && line !== undefined)
+    .join("\n");
 }
 
 const caption = buildCaption();
