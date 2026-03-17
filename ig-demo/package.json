@@ -5,7 +5,9 @@
   "private": true,
   "scripts": {
     "post": "node scripts/post.js",
-    "render": "node scripts/render-image.js"
+    "render": "node scripts/render-image.js",
+    "render-post": "node scripts/render-image.js && node scripts/post.js",
+    "render-post-pages": "node scripts/render-post-pages.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
