@@ -4,10 +4,12 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "post": "node scripts/post.js"
+    "post": "node scripts/post.js",
+    "render": "node scripts/render-image.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "sharp": "^0.33.5"
   }
 }
