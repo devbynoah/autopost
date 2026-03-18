@@ -18,6 +18,7 @@ const {
   CONTACT_PHONE,
   CONTACT_MOBILE,
   CONTACT_EMAIL,
+  DESCRIPTION_TEXT,
   HASHTAGS,
   CTA_LINE,
   IG_API_VERSION = "v24.0",
@@ -63,11 +64,7 @@ function buildCaption() {
     "#tekoop #woning #makelaar #luxewonen #nieuwaanbod #vastgoed";
   const cta = CTA_LINE?.trim() ||
     "Wilt u meer informatie ontvangen of een bezichtiging inplannen? Neem dan gerust contact met ons op, wij helpen u graag verder!";
-
-  const headlineParts = [title, address].filter(Boolean);
-  const headline = headlineParts.length
-    ? headlineParts.join(" - ")
-    : "Nieuw in de verkoop";
+  const description = DESCRIPTION_TEXT?.trim();
 
   const location = [address, city].filter(Boolean).join(", ");
   const priceFormatted = formatPrice(priceRaw);
@@ -82,8 +79,9 @@ function buildCaption() {
   const lines = [
     headerLine,
     location ? `📍 ${location}` : null,
-    headline,
     ...detailLines,
+    description ? "" : null,
+    description || null,
     "",
     cta,
     "",

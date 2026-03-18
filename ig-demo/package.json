@@ -7,7 +7,7 @@
     "apply-json": "node scripts/apply-from-json.js",
     "post": "node scripts/post.js",
     "render": "node scripts/render-image.js",
-    "render-post": "node scripts/render-image.js && node scripts/post.js",
+    "render-post": "node scripts/apply-from-json.js && node scripts/render-image.js && node scripts/post.js",
     "render-post-pages": "node scripts/render-post-pages.js"
   },
   "dependencies": {

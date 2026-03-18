@@ -14,21 +14,17 @@ function normalizeString(value) {
 }
 
 function cleanDescription(value) {
-  const text = normalizeString(value)
+  let text = normalizeString(value)
     .replace(/\s+/g, " ")
     .replace(/\uFFFD/g, "")
     .trim();
+  const englishIdx = text.toLowerCase().indexOf("english version");
+  if (englishIdx >= 0) {
+    text = text.slice(0, englishIdx).trim();
+  }
   return text;
 }
 
-function shorten(text, maxLen = 220) {
-  if (!text) return "";
-  if (text.length <= maxLen) return text;
-  const slice = text.slice(0, maxLen);
-  const lastSpace = slice.lastIndexOf(" ");
-  const trimmed = lastSpace > 80 ? slice.slice(0, lastSpace) : slice;
-  return `${trimmed}…`;
-}
 
 function toUrl(base, rel) {
   if (!base || !rel) return "";
@@ -100,7 +96,7 @@ async function main() {
     listing.groundFloorDescription ||
     listing.detailsDescription ||
     "";
-  const description = shorten(cleanDescription(rawDescription), 220);
+  const description = cleanDescription(rawDescription);
 
   const values = {
     LISTING_TITLE: normalizeString(listing.title),

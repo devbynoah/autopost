@@ -172,7 +172,7 @@ async function render() {
   const logoXOffset = Number(LOGO_OFFSET_X) || 0;
   const logoY = Math.round(headlineTop + logoYOffset);
 
-  const overlaySvg = `
+  const bgSvg = `
 <svg width="${canvasW}" height="${canvasH}" xmlns="http://www.w3.org/2000/svg">
   <rect x="0" y="0" width="${canvasW}" height="${canvasH}" fill="${brandBlue}" />
   <rect x="${leftX}" y="${leftY1}" width="${leftW}" height="${leftH}" fill="#ffffff" />
@@ -184,7 +184,10 @@ async function render() {
   <rect x="${leftX}" y="${leftY2}" width="${leftW}" height="${leftH}" fill="none" stroke="#0a0a0a" stroke-width="${frameStroke}" />
   <rect x="${leftX}" y="${leftY3}" width="${leftW}" height="${leftH}" fill="none" stroke="#0a0a0a" stroke-width="${frameStroke}" />
   <rect x="${rightX}" y="${rightY}" width="${rightW}" height="${topAreaH}" fill="none" stroke="#0a0a0a" stroke-width="${frameStroke}" />
+</svg>`;
 
+  const textSvg = `
+<svg width="${canvasW}" height="${canvasH}" xmlns="http://www.w3.org/2000/svg">
   <text x="${textX}" y="${textY}" font-family="Arial, sans-serif" font-size="${headlineFontSize}" font-weight="800" fill="${textColor}">
     ${escapeXml(headline)}
   </text>
@@ -195,7 +198,7 @@ async function render() {
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
   const composites = [
-    { input: Buffer.from(overlaySvg) },
+    { input: Buffer.from(bgSvg) },
     {
       input: leftBufferTop,
       left: leftX + framePad,
@@ -216,6 +219,7 @@ async function render() {
       left: rightX + framePad,
       top: rightY + framePad,
     },
+    { input: Buffer.from(textSvg) },
   ];
 
   if (logoBuffer) {

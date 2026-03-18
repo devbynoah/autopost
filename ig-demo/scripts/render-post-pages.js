@@ -46,6 +46,7 @@ async function updateEnvImageUrl(url) {
 }
 
 async function main() {
+  await run("node", ["scripts/apply-from-json.js"], { cwd: process.cwd() });
   await run("node", ["scripts/render-image.js"], { cwd: process.cwd() });
 
   const url = toUrl(PAGES_BASE_URL, PAGES_RELATIVE_PATH);
