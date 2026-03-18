@@ -1,6 +1,7 @@
 ﻿import "dotenv/config";
 import fs from "fs/promises";
 import path from "path";
+import fetch from "node-fetch";
 import sharp from "sharp";
 
 const {
@@ -55,14 +56,26 @@ function buildSubheadline() {
   return [address, city].filter(Boolean).join(", ");
 }
 
-async function tryLoadImage(filePath, resizeOptions) {
-  if (!filePath) return null;
+async function loadImageBuffer(source, resizeOptions, { trim = false } = {}) {
+  if (!source) return null;
   try {
-    const image = sharp(filePath);
-    const pipeline = resizeOptions ? image.resize(resizeOptions) : image;
-    return await pipeline.toBuffer();
+    let image;
+    if (/^https?:\/\//i.test(source)) {
+      const res = await fetch(source);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch image: ${res.status}`);
+      }
+      const arrayBuffer = await res.arrayBuffer();
+      image = sharp(Buffer.from(arrayBuffer));
+    } else {
+      image = sharp(source);
+    }
+
+    if (trim) image = image.trim();
+    if (resizeOptions) image = image.resize(resizeOptions);
+    return await image.toBuffer();
   } catch (err) {
-    console.warn(`Could not load image: ${filePath}`);
+    console.warn(`Could not load image: ${source}`);
     return null;
   }
 }
@@ -98,49 +111,48 @@ async function render() {
   const bottomLeftPath = IMAGE_BOTTOM_LEFT || LOCAL_IMAGE_PATH;
   const rightPath = IMAGE_RIGHT || LOCAL_IMAGE_PATH;
 
-  const leftBufferTop = await sharp(topLeftPath)
-    .resize({
-      width: leftW - framePad * 2,
-      height: leftH - framePad * 2,
-      fit: "cover",
-    })
-    .toBuffer();
+  const leftBufferTop = await loadImageBuffer(topLeftPath, {
+    width: leftW - framePad * 2,
+    height: leftH - framePad * 2,
+    fit: "cover",
+  });
 
-  const leftBufferMid = await sharp(midLeftPath)
-    .resize({
-      width: leftW - framePad * 2,
-      height: leftH - framePad * 2,
-      fit: "cover",
-    })
-    .toBuffer();
+  const leftBufferMid = await loadImageBuffer(midLeftPath, {
+    width: leftW - framePad * 2,
+    height: leftH - framePad * 2,
+    fit: "cover",
+  });
 
-  const leftBufferBottom = await sharp(bottomLeftPath)
-    .resize({
-      width: leftW - framePad * 2,
-      height: leftH - framePad * 2,
-      fit: "cover",
-    })
-    .toBuffer();
+  const leftBufferBottom = await loadImageBuffer(bottomLeftPath, {
+    width: leftW - framePad * 2,
+    height: leftH - framePad * 2,
+    fit: "cover",
+  });
 
-  const rightBuffer = await sharp(rightPath)
-    .resize({
-      width: rightW - framePad * 2,
-      height: topAreaH - framePad * 2,
-      fit: "cover",
-    })
-    .toBuffer();
+  const rightBuffer = await loadImageBuffer(rightPath, {
+    width: rightW - framePad * 2,
+    height: topAreaH - framePad * 2,
+    fit: "cover",
+  });
+  if (!leftBufferTop || !leftBufferMid || !leftBufferBottom || !rightBuffer) {
+    throw new Error("One or more listing images could not be loaded.");
+  }
 
   const logoWidth = 260;
   const logoHeight = 120;
-  const logoBuffer = await tryLoadImage(LOGO_PATH, {
-    width: logoWidth,
-    height: logoHeight,
-    fit: "contain",
-    background: { r: 0, g: 0, b: 0, alpha: 0 },
-  });
+  const logoBuffer = await loadImageBuffer(
+    LOGO_PATH,
+    {
+      width: logoWidth,
+      height: logoHeight,
+      fit: "contain",
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+    { trim: true }
+  );
 
   const balloonSize = 130;
-  const balloonBuffer = await tryLoadImage(BALLOON_PATH, {
+  const balloonBuffer = await loadImageBuffer(BALLOON_PATH, {
     width: balloonSize,
     height: balloonSize,
     fit: "contain",
