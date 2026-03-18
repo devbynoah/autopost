@@ -74,11 +74,24 @@ async function main() {
 
   const listing = LISTING_ID
     ? data.find((item) => String(item.id) === String(LISTING_ID))
-    : data[0];
+    : data[data.length - 1];
 
   if (!listing) {
     throw new Error(`Listing not found for id: ${LISTING_ID}`);
   }
+  const pickedInfo = [
+    listing.id && `id=${listing.id}`,
+    listing.title,
+    listing.street || listing.houseNumber
+      ? `${listing.street || ""} ${listing.houseNumber || ""}`.trim()
+      : "",
+    listing.city,
+  ]
+    .filter(Boolean)
+    .join(" | ")
+    .replace(/\s+/g, " ")
+    .trim();
+  console.log(`Using listing: ${pickedInfo}`);
 
   const address = [listing.street, listing.houseNumber].filter(Boolean).join(" ");
   const listingUrl = toUrl(LISTING_BASE_URL, listing.url);

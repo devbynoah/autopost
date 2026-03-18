@@ -1,5 +1,7 @@
 ﻿import "dotenv/config";
 import fetch from "node-fetch";
+import fs from "fs/promises";
+import path from "path";
 
 const {
   IG_USER_ID,
@@ -92,9 +94,72 @@ function buildCaption() {
     hashtags,
   ];
 
-  return lines
+  let caption = lines
     .filter((line) => line !== null && line !== undefined)
     .join("\n");
+
+  const MAX_CAPTION = 2200;
+  if (description && caption.length > MAX_CAPTION) {
+    const sentences = description
+      .split(/(?<=[.!?])\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const linesNoDesc = [
+      headerLine,
+      location ? `📍 ${location}` : null,
+      ...detailLines,
+      "",
+      cta,
+      "",
+      phone ? `T: ${phone}` : null,
+      mobile ? `M: ${mobile}` : null,
+      email ? `E: ${email}` : null,
+      "",
+      hashtags,
+    ];
+    const baseCaption = linesNoDesc
+      .filter((line) => line !== null && line !== undefined)
+      .join("\n");
+
+    // Leave space for two newlines between details and description.
+    const separator = "\n\n";
+    let available = MAX_CAPTION - baseCaption.length - separator.length;
+    if (available < 0) available = 0;
+    let summary = "";
+    for (const sentence of sentences) {
+      const candidate = summary ? `${summary} ${sentence}` : sentence;
+      if (candidate.length > available) break;
+      summary = candidate;
+    }
+    if (!summary && available > 0) {
+      summary = description.slice(0, available).trim();
+    }
+    if (summary.length < description.length && summary) {
+      summary = `${summary.replace(/\s+$/, "")}…`;
+    }
+
+    caption = [
+      headerLine,
+      location ? `📍 ${location}` : null,
+      ...detailLines,
+      "",
+      summary,
+      "",
+      cta,
+      "",
+      phone ? `T: ${phone}` : null,
+      mobile ? `M: ${mobile}` : null,
+      email ? `E: ${email}` : null,
+      "",
+      hashtags,
+    ]
+      .filter((line) => line !== null && line !== undefined)
+      .join("\n")
+      .slice(0, MAX_CAPTION);
+  }
+
+  return caption;
 }
 
 const caption = buildCaption();
@@ -103,6 +168,80 @@ const baseUrl = `https://graph.facebook.com/${IG_API_VERSION}`;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function updateEnvImageUrl(url) {
+  const envPath = path.resolve(".env");
+  const content = await fs.readFile(envPath, "utf8");
+  const lines = content.split(/\r?\n/);
+  let replaced = false;
+  const next = lines.map((line) => {
+    if (line.startsWith("IMAGE_URL=")) {
+      replaced = true;
+      return `IMAGE_URL=${url}`;
+    }
+    return line;
+  });
+  if (!replaced) {
+    next.unshift(`IMAGE_URL=${url}`);
+  }
+  await fs.writeFile(envPath, next.join("\n"), "utf8");
+}
+
+async function validateImageUrl(url) {
+  if (!url) throw new Error("IMAGE_URL is empty.");
+  const checks = [];
+  const retries = Math.max(0, Number(process.env.IMAGE_VERIFY_RETRIES || "20"));
+  const waitMs = Math.max(
+    500,
+    Number(process.env.IMAGE_VERIFY_WAIT_SECONDS || "2") * 1000
+  );
+  let lastFinalUrl = url;
+
+  async function checkWith(method) {
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: method === "GET" ? { Range: "bytes=0-1" } : undefined,
+      });
+      const contentType = res.headers.get("content-type") || "";
+      const contentLength = res.headers.get("content-length") || "";
+      checks.push({
+        method,
+        ok: res.ok,
+        status: res.status,
+        contentType,
+        contentLength,
+      });
+      if (res.ok && contentType.startsWith("image/")) {
+        lastFinalUrl = res.url || url;
+        return;
+      }
+    } catch (err) {
+      checks.push({ method, ok: false, error: err?.message || String(err) });
+    }
+    throw new Error(
+      `IMAGE_URL is not a valid image. Checks: ${JSON.stringify(checks)}`
+    );
+  }
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      await checkWith("HEAD");
+      return lastFinalUrl;
+    } catch {
+      try {
+        await checkWith("GET");
+        return lastFinalUrl;
+      } catch {}
+    }
+    if (attempt < retries) {
+      await sleep(waitMs);
+    }
+  }
+  throw new Error(
+    `IMAGE_URL is not a valid image. Checks: ${JSON.stringify(checks)}`
+  );
 }
 
 async function publishWithRetry(creationId) {
@@ -141,9 +280,15 @@ async function publishWithRetry(creationId) {
 }
 
 async function postToInstagram() {
+  const imageUrl = await validateImageUrl(IMAGE_URL);
+  if (imageUrl && imageUrl !== IMAGE_URL) {
+    await updateEnvImageUrl(imageUrl);
+    console.log(`IMAGE_URL updated to shard URL: ${imageUrl}`);
+  }
+
   // Step 1: Create media container
   const createParams = new URLSearchParams({
-    image_url: IMAGE_URL,
+    image_url: imageUrl,
     caption,
     access_token: IG_ACCESS_TOKEN,
   });
