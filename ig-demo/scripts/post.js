@@ -16,6 +16,7 @@ const {
   ENERGY_LABEL,
   LISTING_URL,
   CONTACT_PHONE,
+  CONTACT_MOBILE,
   CONTACT_EMAIL,
   HASHTAGS,
   CTA_LINE,
@@ -55,7 +56,8 @@ function buildCaption() {
   const rooms = ROOMS?.trim();
   const label = ENERGY_LABEL?.trim();
   const url = LISTING_URL?.trim();
-  const phone = CONTACT_PHONE?.trim() || "070-21 70 271";
+  const phone = "070-21 70 271";
+  const mobile = CONTACT_MOBILE?.trim();
   const email = CONTACT_EMAIL?.trim() || "city@remax.nl";
   const hashtags = HASHTAGS?.trim() ||
     "#tekoop #woning #makelaar #luxewonen #nieuwaanbod #vastgoed";
@@ -86,6 +88,7 @@ function buildCaption() {
     cta,
     "",
     phone ? `T: ${phone}` : null,
+    mobile ? `M: ${mobile}` : null,
     email ? `E: ${email}` : null,
     "",
     hashtags,

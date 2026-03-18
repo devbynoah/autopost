@@ -112,6 +112,7 @@ async function main() {
     ENERGY_LABEL: normalizeString(listing.energyLabel),
     LISTING_URL: normalizeString(listingUrl),
     CONTACT_PHONE: normalizeString(listing.contactPhone || listing.contactMobile),
+    CONTACT_MOBILE: normalizeString(listing.contactMobile),
     CONTACT_EMAIL: normalizeString(listing.contactEmail),
     DESCRIPTION_TEXT: description,
     IMAGE_TOP_LEFT: imageTopLeft,

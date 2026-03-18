@@ -20,6 +20,7 @@ const {
   HEADLINE_TEXT = "NIEUW IN DE VERKOOP!",
   SUBHEADLINE_TEXT,
   LOGO_OFFSET_Y = "0",
+  LOGO_OFFSET_X = "0",
 } = process.env;
 
 function requireEnv(name, value) {
@@ -138,8 +139,8 @@ async function render() {
     throw new Error("One or more listing images could not be loaded.");
   }
 
-  const logoWidth = 260;
-  const logoHeight = 120;
+  const logoWidth = 300;
+  const logoHeight = 140;
   const logoBuffer = await loadImageBuffer(
     LOGO_PATH,
     {
@@ -162,12 +163,13 @@ async function render() {
   const headline = normalizeString(HEADLINE_TEXT) || "NIEUW IN DE VERKOOP!";
   const subheadline = buildSubheadline();
 
-  const headlineFontSize = 44;
+  const headlineFontSize = 50;
   const headlineAscent = 0.8; // approximate ascent ratio for baseline alignment
-  const textX = margin + logoWidth + 30;
+  const textX = margin + logoWidth + 50;
   const textY = canvasH - bottomH + 70;
   const headlineTop = textY - headlineFontSize * headlineAscent;
   const logoYOffset = Number(LOGO_OFFSET_Y) || 0;
+  const logoXOffset = Number(LOGO_OFFSET_X) || 0;
   const logoY = Math.round(headlineTop + logoYOffset);
 
   const overlaySvg = `
@@ -186,7 +188,7 @@ async function render() {
   <text x="${textX}" y="${textY}" font-family="Arial, sans-serif" font-size="${headlineFontSize}" font-weight="800" fill="${textColor}">
     ${escapeXml(headline)}
   </text>
-  ${subheadline ? `<text x="${textX}" y="${textY + 52}" font-family="Arial, sans-serif" font-size="30" font-weight="400" fill="${textColor}">${escapeXml(subheadline)}</text>` : ""}
+  ${subheadline ? `<text x="${textX}" y="${textY + 58}" font-family="Arial, sans-serif" font-size="34" font-weight="400" fill="${textColor}">${escapeXml(subheadline)}</text>` : ""}
 </svg>`;
 
   const outputPath = path.resolve(OUTPUT_IMAGE_PATH);
@@ -219,7 +221,7 @@ async function render() {
   if (logoBuffer) {
     composites.push({
       input: logoBuffer,
-      left: margin,
+      left: margin + logoXOffset,
       top: logoY,
     });
   }
