@@ -5,18 +5,20 @@ import sharp from "sharp";
 
 const {
   LOCAL_IMAGE_PATH,
+  IMAGE_TOP_LEFT,
+  IMAGE_MID_LEFT,
+  IMAGE_BOTTOM_LEFT,
+  IMAGE_RIGHT,
   OUTPUT_IMAGE_PATH = "./output/ig-card.jpg",
-  LOGO_PATH,
+  LOGO_PATH = "./assets/img/remax-city-logo-wit.png",
+  BALLOON_PATH = "./assets/img/remax-balloon-2025.png",
   ADDRESS,
   CITY,
-  PRICE_EUR,
-  BRAND_BLUE = "#000e36",
-  BRAND_RED = "#ff1100",
-  BADGE_COLOR = "#1f63ff",
+  BRAND_BLUE = "#0b1c39",
   TEXT_COLOR = "#ffffff",
-  HEADLINE_TEXT = "NIEUW IN DE VERKOOP",
-  DESCRIPTION_TEXT =
-    "Zoek je een fijn, ruim appartement met alle voorzieningen binnen handbereik? Voeg hier je eigen beschrijving toe.",
+  HEADLINE_TEXT = "NIEUW IN DE VERKOOP!",
+  SUBHEADLINE_TEXT,
+  LOGO_OFFSET_Y = "0",
 } = process.env;
 
 function requireEnv(name, value) {
@@ -37,15 +39,6 @@ function normalizeColor(value, fallback) {
   return cleaned || fallback;
 }
 
-function formatPrice(value) {
-  if (!value) return "";
-  const digits = String(value).replace(/[^0-9]/g, "");
-  if (!digits) return String(value).trim();
-  const number = Number(digits);
-  if (!Number.isFinite(number)) return String(value).trim();
-  return new Intl.NumberFormat("nl-NL").format(number);
-}
-
 function escapeXml(text) {
   return String(text)
     .replace(/&/g, "&amp;")
@@ -53,153 +46,189 @@ function escapeXml(text) {
     .replace(/>/g, "&gt;");
 }
 
-function wrapText(text, maxChars) {
-  const words = String(text).split(/\s+/).filter(Boolean);
-  const lines = [];
-  let line = "";
-  for (const word of words) {
-    const next = line ? `${line} ${word}` : word;
-    if (next.length > maxChars && line) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = next;
-    }
+function buildSubheadline() {
+  const custom = normalizeString(SUBHEADLINE_TEXT);
+  if (custom) return custom;
+  const address = normalizeString(ADDRESS);
+  const city = normalizeString(CITY);
+  if (address && city) return `${address} te ${city}`;
+  return [address, city].filter(Boolean).join(", ");
+}
+
+async function tryLoadImage(filePath, resizeOptions) {
+  if (!filePath) return null;
+  try {
+    const image = sharp(filePath);
+    const pipeline = resizeOptions ? image.resize(resizeOptions) : image;
+    return await pipeline.toBuffer();
+  } catch (err) {
+    console.warn(`Could not load image: ${filePath}`);
+    return null;
   }
-  if (line) lines.push(line);
-  return lines;
 }
 
 async function render() {
   const canvasW = 1080;
   const canvasH = 1350;
-  const margin = 40;
-  const gap = 18;
-  const topH = 620;
-  const smallH = 300;
-  const topW = canvasW - margin * 2;
-  const smallW = Math.floor((topW - gap * 2) / 3);
+  const margin = 30;
+  const gap = 20;
+  const bottomH = 220;
+  const topAreaH = canvasH - bottomH - margin * 2;
 
-  const topY = margin;
-  const smallY = topY + topH + gap;
-  const textBlockTop = smallY + smallH + gap + 50;
+  const leftW = 320;
+  const rightW = canvasW - margin * 2 - leftW - gap;
+  const leftH = Math.floor((topAreaH - gap * 2) / 3);
 
-  const base = sharp(LOCAL_IMAGE_PATH);
-  const topBuffer = await base
-    .clone()
-    .resize({ width: topW, height: topH, fit: "cover" })
-    .toBuffer();
+  const leftX = margin;
+  const leftY1 = margin;
+  const leftY2 = margin + leftH + gap;
+  const leftY3 = margin + (leftH + gap) * 2;
 
-  const smallBuffer = await base
-    .clone()
-    .resize({ width: smallW, height: smallH, fit: "cover" })
-    .toBuffer();
+  const rightX = margin + leftW + gap;
+  const rightY = margin;
 
-  const addressLine = [ADDRESS, CITY].filter(Boolean).join(", ");
-  const price = formatPrice(PRICE_EUR);
-  const brandBlue = normalizeColor(BRAND_BLUE, "#000e36");
-  const badgeColor = normalizeColor(BADGE_COLOR, "#1f63ff");
+  const framePad = 6;
+  const frameStroke = 4;
+
+  const brandBlue = normalizeColor(BRAND_BLUE, "#0b1c39");
   const textColor = normalizeColor(TEXT_COLOR, "#ffffff");
 
-  const headlineLines = wrapText(HEADLINE_TEXT, 18).slice(0, 2);
-  const descLines = wrapText(DESCRIPTION_TEXT, 58).slice(0, 8);
+  const topLeftPath = IMAGE_TOP_LEFT || LOCAL_IMAGE_PATH;
+  const midLeftPath = IMAGE_MID_LEFT || LOCAL_IMAGE_PATH;
+  const bottomLeftPath = IMAGE_BOTTOM_LEFT || LOCAL_IMAGE_PATH;
+  const rightPath = IMAGE_RIGHT || LOCAL_IMAGE_PATH;
 
-  const badgePaddingX = 24;
-  const badgePaddingY = 14;
-  const badgeLineHeight = 44;
-  const badgeW = 520;
-  const badgeH =
-    badgePaddingY * 2 + badgeLineHeight * headlineLines.length;
-
-  const badgeX = margin + 12;
-  const badgeY = margin + 12;
-
-  const pinR = 40;
-  const pinX = canvasW - margin - pinR - 6;
-  const pinY = margin + pinR + 6;
-
-  const textStartX = margin;
-  const detailLineHeight = 32;
-  const descLineHeight = 32;
-  const detailSize = 28;
-  const descSize = 26;
-
-  const detailLines = [];
-  if (addressLine) detailLines.push(`📍 ${addressLine}`);
-  if (price) detailLines.push(`💶 Vraagprijs EUR ${price},- k.k.`);
-
-  const detailSvgLines = detailLines
-    .map((line, i) => {
-      return `<text x="${textStartX}" y="${textBlockTop + i * detailLineHeight}" font-family="Arial, sans-serif" font-size="${detailSize}" font-weight="600" fill="${textColor}">${escapeXml(line)}</text>`;
+  const leftBufferTop = await sharp(topLeftPath)
+    .resize({
+      width: leftW - framePad * 2,
+      height: leftH - framePad * 2,
+      fit: "cover",
     })
-    .join("");
+    .toBuffer();
 
-  const descStartY = textBlockTop + detailLines.length * detailLineHeight + 26;
-  const descSvgLines = descLines
-    .map((line, i) => {
-      return `<text x="${textStartX}" y="${descStartY + i * descLineHeight}" font-family="Arial, sans-serif" font-size="${descSize}" font-weight="400" fill="${textColor}">${escapeXml(line)}</text>`;
+  const leftBufferMid = await sharp(midLeftPath)
+    .resize({
+      width: leftW - framePad * 2,
+      height: leftH - framePad * 2,
+      fit: "cover",
     })
-    .join("");
+    .toBuffer();
 
-  const badgeText = headlineLines
-    .map((line, i) => {
-      return `<text x="${badgeX + badgePaddingX}" y="${badgeY + badgePaddingY + badgeLineHeight * (i + 1) - 6}" font-family="Arial, sans-serif" font-size="36" font-weight="800" fill="#ffffff">${escapeXml(line)}</text>`;
+  const leftBufferBottom = await sharp(bottomLeftPath)
+    .resize({
+      width: leftW - framePad * 2,
+      height: leftH - framePad * 2,
+      fit: "cover",
     })
-    .join("");
+    .toBuffer();
 
-  const pinSvg = `
-    <g>
-      <defs>
-        <clipPath id="pinClip">
-          <circle cx="${pinX}" cy="${pinY}" r="${pinR}" />
-        </clipPath>
-      </defs>
-      <circle cx="${pinX}" cy="${pinY}" r="${pinR + 4}" fill="#ffffff" />
-      <g clip-path="url(#pinClip)">
-        <rect x="${pinX - pinR}" y="${pinY - pinR}" width="${pinR * 2}" height="${(pinR * 2) / 3}" fill="#ae1c28" />
-        <rect x="${pinX - pinR}" y="${pinY - pinR + (pinR * 2) / 3}" width="${pinR * 2}" height="${(pinR * 2) / 3}" fill="#ffffff" />
-        <rect x="${pinX - pinR}" y="${pinY - pinR + (pinR * 4) / 3}" width="${pinR * 2}" height="${(pinR * 2) / 3}" fill="#21468b" />
-      </g>
-      <circle cx="${pinX}" cy="${pinY}" r="${pinR}" fill="none" stroke="#ffffff" stroke-width="2" />
-      <polygon points="${pinX},${pinY + pinR + 8} ${pinX - 10},${pinY + pinR - 2} ${pinX + 10},${pinY + pinR - 2}" fill="#ffffff" />
-    </g>
-  `;
+  const rightBuffer = await sharp(rightPath)
+    .resize({
+      width: rightW - framePad * 2,
+      height: topAreaH - framePad * 2,
+      fit: "cover",
+    })
+    .toBuffer();
 
-  const whiteHeight = Math.round(canvasH * 0.4);
-  const bgSvg = `
-<svg width="${canvasW}" height="${canvasH}" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="0" width="${canvasW}" height="${whiteHeight}" fill="#ffffff" />
-  <rect x="0" y="${whiteHeight}" width="${canvasW}" height="${canvasH - whiteHeight}" fill="${brandBlue}" />
-</svg>`;
+  const logoWidth = 260;
+  const logoHeight = 120;
+  const logoBuffer = await tryLoadImage(LOGO_PATH, {
+    width: logoWidth,
+    height: logoHeight,
+    fit: "contain",
+    background: { r: 0, g: 0, b: 0, alpha: 0 },
+  });
+
+  const balloonSize = 130;
+  const balloonBuffer = await tryLoadImage(BALLOON_PATH, {
+    width: balloonSize,
+    height: balloonSize,
+    fit: "contain",
+    background: { r: 0, g: 0, b: 0, alpha: 0 },
+  });
+
+  const headline = normalizeString(HEADLINE_TEXT) || "NIEUW IN DE VERKOOP!";
+  const subheadline = buildSubheadline();
+
+  const headlineFontSize = 44;
+  const headlineAscent = 0.8; // approximate ascent ratio for baseline alignment
+  const textX = margin + logoWidth + 30;
+  const textY = canvasH - bottomH + 70;
+  const headlineTop = textY - headlineFontSize * headlineAscent;
+  const logoYOffset = Number(LOGO_OFFSET_Y) || 0;
+  const logoY = Math.round(headlineTop + logoYOffset);
 
   const overlaySvg = `
 <svg width="${canvasW}" height="${canvasH}" xmlns="http://www.w3.org/2000/svg">
-  <rect x="${badgeX}" y="${badgeY}" width="${badgeW}" height="${badgeH}" fill="${badgeColor}" />
-  ${badgeText}
-  ${pinSvg}
-  ${detailSvgLines}
-  ${descSvgLines}
+  <rect x="0" y="0" width="${canvasW}" height="${canvasH}" fill="${brandBlue}" />
+  <rect x="${leftX}" y="${leftY1}" width="${leftW}" height="${leftH}" fill="#ffffff" />
+  <rect x="${leftX}" y="${leftY2}" width="${leftW}" height="${leftH}" fill="#ffffff" />
+  <rect x="${leftX}" y="${leftY3}" width="${leftW}" height="${leftH}" fill="#ffffff" />
+  <rect x="${rightX}" y="${rightY}" width="${rightW}" height="${topAreaH}" fill="#ffffff" />
+
+  <rect x="${leftX}" y="${leftY1}" width="${leftW}" height="${leftH}" fill="none" stroke="#0a0a0a" stroke-width="${frameStroke}" />
+  <rect x="${leftX}" y="${leftY2}" width="${leftW}" height="${leftH}" fill="none" stroke="#0a0a0a" stroke-width="${frameStroke}" />
+  <rect x="${leftX}" y="${leftY3}" width="${leftW}" height="${leftH}" fill="none" stroke="#0a0a0a" stroke-width="${frameStroke}" />
+  <rect x="${rightX}" y="${rightY}" width="${rightW}" height="${topAreaH}" fill="none" stroke="#0a0a0a" stroke-width="${frameStroke}" />
+
+  <text x="${textX}" y="${textY}" font-family="Arial, sans-serif" font-size="${headlineFontSize}" font-weight="800" fill="${textColor}">
+    ${escapeXml(headline)}
+  </text>
+  ${subheadline ? `<text x="${textX}" y="${textY + 52}" font-family="Arial, sans-serif" font-size="30" font-weight="400" fill="${textColor}">${escapeXml(subheadline)}</text>` : ""}
 </svg>`;
 
   const outputPath = path.resolve(OUTPUT_IMAGE_PATH);
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
+
+  const composites = [
+    { input: Buffer.from(overlaySvg) },
+    {
+      input: leftBufferTop,
+      left: leftX + framePad,
+      top: leftY1 + framePad,
+    },
+    {
+      input: leftBufferMid,
+      left: leftX + framePad,
+      top: leftY2 + framePad,
+    },
+    {
+      input: leftBufferBottom,
+      left: leftX + framePad,
+      top: leftY3 + framePad,
+    },
+    {
+      input: rightBuffer,
+      left: rightX + framePad,
+      top: rightY + framePad,
+    },
+  ];
+
+  if (logoBuffer) {
+    composites.push({
+      input: logoBuffer,
+      left: margin,
+      top: logoY,
+    });
+  }
+
+  if (balloonBuffer) {
+    composites.push({
+      input: balloonBuffer,
+      left: rightX + rightW - balloonSize - 12,
+      top: rightY + 12,
+    });
+  }
 
   await sharp({
     create: {
       width: canvasW,
       height: canvasH,
       channels: 3,
-      background: "#ffffff",
+      background: brandBlue,
     },
   })
-    .composite([
-      { input: Buffer.from(bgSvg) },
-      { input: topBuffer, left: margin, top: topY },
-      { input: smallBuffer, left: margin, top: smallY },
-      { input: smallBuffer, left: margin + smallW + gap, top: smallY },
-      { input: smallBuffer, left: margin + (smallW + gap) * 2, top: smallY },
-      { input: Buffer.from(overlaySvg) },
-    ])
+    .composite(composites)
     .jpeg({ quality: 90 })
     .toFile(outputPath);
 
