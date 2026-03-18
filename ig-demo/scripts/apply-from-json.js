@@ -123,6 +123,15 @@ async function main() {
     CONTACT_PHONE: normalizeString(listing.contactPhone || listing.contactMobile),
     CONTACT_MOBILE: normalizeString(listing.contactMobile),
     CONTACT_EMAIL: normalizeString(listing.contactEmail),
+    PROPERTY_TYPE: normalizeString(listing.type),
+    PROPERTY_CATEGORY: normalizeString(listing.soortWoning),
+    PROPERTY_SUBTYPE: normalizeString(listing.soortWoonhuis || listing.apartmentType),
+    PROPERTY_HOUSE_TYPE: normalizeString(listing.typeWoonhuis),
+    PROPERTY_APARTMENT_FEATURE: normalizeString(listing.apartmentFeature),
+    LISTING_STATUS: normalizeString(listing.status),
+    LISTING_LABELS: Array.isArray(listing.labels)
+      ? listing.labels.join(",")
+      : normalizeString(listing.labels),
     DESCRIPTION_TEXT: description,
     IMAGE_TOP_LEFT: imageTopLeft,
     IMAGE_MID_LEFT: imageMidLeft,

@@ -21,7 +21,17 @@ const {
   CONTACT_MOBILE,
   CONTACT_EMAIL,
   DESCRIPTION_TEXT,
+  PROPERTY_TYPE,
+  PROPERTY_CATEGORY,
+  PROPERTY_SUBTYPE,
+  PROPERTY_HOUSE_TYPE,
+  PROPERTY_APARTMENT_FEATURE,
+  LISTING_STATUS,
+  LISTING_LABELS,
   HASHTAGS,
+  HASHTAGS_BASE,
+  HASHTAG_AUTO = "1",
+  MAX_HASHTAGS = "30",
   CTA_LINE,
   IG_API_VERSION = "v24.0",
   PUBLISH_RETRIES = "6",
@@ -47,6 +57,71 @@ function formatPrice(value) {
   return new Intl.NumberFormat("nl-NL").format(number);
 }
 
+function normalizeTag(value) {
+  if (!value) return "";
+  const cleaned = String(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+  return cleaned;
+}
+
+function extractTagsFromText(text) {
+  return String(text)
+    .split(/[\s,]+/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((t) => (t.startsWith("#") ? t.slice(1) : t))
+    .map(normalizeTag)
+    .filter(Boolean);
+}
+
+function buildHashtags() {
+  const base = HASHTAGS_BASE?.trim()
+    ? extractTagsFromText(HASHTAGS_BASE)
+    : ["tekoop", "woning", "makelaar", "luxewonen", "nieuwaanbod", "vastgoed"];
+
+  const includeDynamic =
+    HASHTAG_AUTO !== "0" && HASHTAG_AUTO.toLowerCase() !== "false";
+
+  const tags = new Set(base);
+  const blocked = new Set(["makelaardenhaag", "galerijflat", "beschikbaar"]);
+
+  if (HASHTAGS?.trim()) {
+    extractTagsFromText(HASHTAGS).forEach((t) => tags.add(t));
+  }
+
+  if (includeDynamic) {
+    const cityTag = normalizeTag(CITY);
+    if (cityTag) {
+      tags.add(cityTag);
+      tags.add(`woning${cityTag}`);
+    }
+
+    [
+      PROPERTY_TYPE,
+      PROPERTY_CATEGORY,
+      PROPERTY_SUBTYPE,
+      PROPERTY_HOUSE_TYPE,
+      PROPERTY_APARTMENT_FEATURE,
+    ]
+      .flat()
+      .filter(Boolean)
+      .forEach((value) => {
+        extractTagsFromText(value).forEach((t) => tags.add(t));
+      });
+  }
+
+  const maxTags = Math.max(1, Number(MAX_HASHTAGS) || 30);
+  return Array.from(tags)
+    .filter(Boolean)
+    .filter((t) => !blocked.has(t))
+    .slice(0, maxTags)
+    .map((t) => `#${t}`)
+    .join(" ");
+}
+
 function buildCaption() {
   if (CAPTION && CAPTION.trim()) return CAPTION.trim();
 
@@ -62,8 +137,7 @@ function buildCaption() {
   const phone = "070-21 70 271";
   const mobile = CONTACT_MOBILE?.trim();
   const email = CONTACT_EMAIL?.trim() || "city@remax.nl";
-  const hashtags = HASHTAGS?.trim() ||
-    "#tekoop #woning #makelaar #luxewonen #nieuwaanbod #vastgoed";
+  const hashtags = buildHashtags();
   const cta = CTA_LINE?.trim() ||
     "Wilt u meer informatie ontvangen of een bezichtiging inplannen? Neem dan gerust contact met ons op, wij helpen u graag verder!";
   const description = DESCRIPTION_TEXT?.trim();
@@ -100,7 +174,11 @@ function buildCaption() {
 
   const MAX_CAPTION = 2200;
   if (description && caption.length > MAX_CAPTION) {
-    const sentences = description
+    const prunedDescription = description
+      .split(/\b(?:indeling|kenmerken|features|bijzonderheden|details)\b/i)[0]
+      .trim() || description;
+
+    const sentences = prunedDescription
       .split(/(?<=[.!?])\s+/)
       .map((s) => s.trim())
       .filter(Boolean);
@@ -133,9 +211,9 @@ function buildCaption() {
       summary = candidate;
     }
     if (!summary && available > 0) {
-      summary = description.slice(0, available).trim();
+      summary = prunedDescription.slice(0, available).trim();
     }
-    if (summary.length < description.length && summary) {
+    if (summary.length < prunedDescription.length && summary) {
       summary = `${summary.replace(/\s+$/, "")}…`;
     }
 
