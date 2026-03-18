@@ -90,10 +90,10 @@ async function main() {
   const images = Array.isArray(listing.images) ? listing.images : [];
   const fallbackImage = listing.image || images[0] || "";
 
-  const imageTopLeft = images[0] || fallbackImage;
-  const imageMidLeft = images[1] || fallbackImage;
-  const imageBottomLeft = images[2] || fallbackImage;
-  const imageRight = images[3] || fallbackImage;
+  const imageRight = images[0] || fallbackImage;
+  const imageTopLeft = images[1] || fallbackImage;
+  const imageMidLeft = images[2] || fallbackImage;
+  const imageBottomLeft = images[3] || fallbackImage;
 
   const rawDescription =
     listing.description ||
