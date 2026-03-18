@@ -33,16 +33,24 @@ async function updateEnvImageUrl(url) {
   const lines = content.split(/\r?\n/);
   let replaced = false;
   const next = lines.map((line) => {
-    if (line.startsWith("IMAGE_URL=")) {
-      replaced = true;
-      return `IMAGE_URL=${url}`;
+    const normalized = line.replace(/^\uFEFF/, "");
+    if (normalized.startsWith("IMAGE_URL=")) {
+      if (!replaced) {
+        replaced = true;
+        return `IMAGE_URL=${url}`;
+      }
+      return null;
     }
     return line;
   });
   if (!replaced) {
     next.unshift(`IMAGE_URL=${url}`);
   }
-  await fs.writeFile(envPath, next.join("\n"), "utf8");
+  await fs.writeFile(
+    envPath,
+    next.filter((line) => line !== null).join("\n"),
+    "utf8"
+  );
 }
 
 async function main() {
