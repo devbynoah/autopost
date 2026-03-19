@@ -8,6 +8,7 @@ const {
   LAST_LISTING_STATE_FILE = "./output/last-listing.json",
   RETRY_COOLDOWN_SECONDS = "60",
   SKIP_INITIAL_POST = "1",
+  POST_DELAY_SECONDS = "15",
 } = process.env;
 
 function sleep(ms) {
@@ -34,10 +35,14 @@ async function readJson(filePath) {
   return JSON.parse(raw);
 }
 
+function normalizeId(value) {
+  return value ? String(value) : "";
+}
+
 async function getLatestListingId(list) {
   if (!Array.isArray(list) || list.length === 0) return "";
   const last = list[list.length - 1];
-  return last?.id ? String(last.id) : "";
+  return normalizeId(last?.id);
 }
 
 async function readLastState(statePath) {
@@ -95,23 +100,49 @@ async function main() {
         latestId === lastAttemptId &&
         now - lastAttemptAt < cooldownMs;
 
-      if (
-        latestId &&
-        latestId !== lastId &&
-        !isRunning &&
-        !recentlyAttempted
-      ) {
-        console.log(`New listing detected: ${latestId}. Running render-post...`);
-        isRunning = true;
-        lastAttemptId = latestId;
-        lastAttemptAt = now;
-        try {
-          await run("npm", ["run", "render-post"], { cwd: process.cwd() });
-          await writeLastState(statePath, latestId);
-          console.log(`Completed render-post for ${latestId}.`);
-        } finally {
-          isRunning = false;
+      if (!latestId || isRunning || recentlyAttempted) {
+        await sleep(intervalMs);
+        continue;
+      }
+
+      const lastIndex = data.findIndex(
+        (item) => normalizeId(item?.id) === normalizeId(lastId)
+      );
+      const startIndex = lastIndex >= 0 ? lastIndex + 1 : data.length - 1;
+      const pending = data.slice(startIndex);
+
+      if (pending.length === 0) {
+        await sleep(intervalMs);
+        continue;
+      }
+
+      console.log(
+        `New listing(s) detected: ${pending
+          .map((i) => normalizeId(i?.id))
+          .filter(Boolean)
+          .join(", ")}. Running render-post...`
+      );
+
+      isRunning = true;
+      lastAttemptId = latestId;
+      lastAttemptAt = now;
+      try {
+        for (const item of pending) {
+          const id = normalizeId(item?.id);
+          if (!id) continue;
+          await run("npm", ["run", "render-post"], {
+            cwd: process.cwd(),
+            env: { ...process.env, LISTING_ID: id, LISTING_QUERY: "" },
+          });
+          await writeLastState(statePath, id);
+          console.log(`Completed render-post for ${id}.`);
+          const delayMs = Math.max(0, Number(POST_DELAY_SECONDS) * 1000);
+          if (delayMs) {
+            await sleep(delayMs);
+          }
         }
+      } finally {
+        isRunning = false;
       }
     } catch (err) {
       console.warn(err.message || err);
