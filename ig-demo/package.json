@@ -11,7 +11,8 @@
     "prerender-post": "node scripts/apply-from-json.js",
     "render-post": "node scripts/render-image.js && node scripts/upload-to-uploadcare.js && node scripts/post.js",
     "render-post-pages": "node scripts/render-post-pages.js",
-    "watch-kolibri": "node scripts/watch-kolibri.js"
+    "watch-kolibri": "node scripts/watch-kolibri.js",
+    "view-log": "node scripts/view-log.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

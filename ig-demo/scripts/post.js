@@ -36,6 +36,8 @@ const {
   IG_API_VERSION = "v24.0",
   PUBLISH_RETRIES = "6",
   PUBLISH_WAIT_SECONDS = "5",
+  LOG_FILE = "./output/post-log.jsonl",
+  LISTING_ID,
 } = process.env;
 
 function requireEnv(name, value) {
@@ -248,6 +250,25 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function logEvent(level, message, extra = {}) {
+  try {
+    const logPath = path.resolve(LOG_FILE);
+    await fs.mkdir(path.dirname(logPath), { recursive: true });
+    const payload = {
+      ts: new Date().toISOString(),
+      level,
+      message,
+      listingId: LISTING_ID || "",
+      listingTitle: LISTING_TITLE || "",
+      ...extra,
+    };
+    const entry = JSON.stringify(payload, null, 2);
+    await fs.appendFile(logPath, `${entry}\n\n`, "utf8");
+  } catch {
+    // Ignore logging errors
+  }
+}
+
 async function updateEnvImageUrl(url) {
   const envPath = path.resolve(".env");
   const content = await fs.readFile(envPath, "utf8");
@@ -398,9 +419,15 @@ async function postToInstagram() {
   const publishJson = await publishWithRetry(creationId);
 
   console.log("Posted successfully:", publishJson);
+  await logEvent("info", "Posted successfully", {
+    mediaId: publishJson?.id || "",
+    imageUrl,
+  });
 }
 
-postToInstagram().catch((err) => {
-  console.error(err.message || err);
-  process.exit(1);
-});
+postToInstagram()
+  .catch(async (err) => {
+    console.error(err.message || err);
+    await logEvent("error", "Post failed", { error: err?.message || String(err) });
+    process.exit(1);
+  });
