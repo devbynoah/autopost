@@ -5,6 +5,7 @@ import path from "path";
 const {
   JSON_SOURCE_PATH = "./aanbod/kolibri-aanbod.json",
   LISTING_ID,
+  LISTING_QUERY,
   LISTING_BASE_URL,
 } = process.env;
 
@@ -72,12 +73,37 @@ async function main() {
     throw new Error("JSON contains no listings.");
   }
 
-  const listing = LISTING_ID
-    ? data.find((item) => String(item.id) === String(LISTING_ID))
-    : data[data.length - 1];
+  const query = normalizeString(LISTING_QUERY).toLowerCase();
+  let listing = null;
+
+  if (LISTING_ID) {
+    listing = data.find((item) => String(item.id) === String(LISTING_ID));
+  } else if (query) {
+    const matches = data.filter((item) => {
+      const haystack = [
+        item.title,
+        item.street,
+        item.slug,
+        item.url,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+    listing = matches[matches.length - 1] || null;
+  } else {
+    listing = data[data.length - 1];
+  }
 
   if (!listing) {
-    throw new Error(`Listing not found for id: ${LISTING_ID}`);
+    if (LISTING_ID) {
+      throw new Error(`Listing not found for id: ${LISTING_ID}`);
+    }
+    if (query) {
+      throw new Error(`Listing not found for query: ${LISTING_QUERY}`);
+    }
+    throw new Error("Listing not found.");
   }
   const pickedInfo = [
     listing.id && `id=${listing.id}`,
