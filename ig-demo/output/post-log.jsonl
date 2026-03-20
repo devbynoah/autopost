@@ -7,3 +7,33 @@
   "mediaId": "18311225827287840",
   "imageUrl": "https://1so6kc9c7w.ucarecd.net/4f045b2b-51e6-4f00-9339-d839e4d05fb4/-/format/jpg/"
 }
+{
+  "ts": "2026-03-19T22:01:21.905Z",
+  "level": "info",
+  "message": "Posted successfully",
+  "listingId": "7302895",
+  "listingTitle": "Oudemansstraat 81, Den Haag",
+  "mediaId": "18098801320945755",
+  "imageUrl": "https://1so6kc9c7w.ucarecd.net/29d53e50-9cc8-4359-98e4-f5afdafdc1f2/-/format/jpg/"
+}
+
+{
+  "ts": "2026-03-19T22:04:26.722Z",
+  "level": "info",
+  "message": "Posted successfully",
+  "listingId": "7235862",
+  "listingTitle": "Heiloostraat 465, Den Haag",
+  "mediaId": "18063344348338720",
+  "imageUrl": "https://1so6kc9c7w.ucarecd.net/527d1b9a-9bcb-47d6-946a-e5a67e0584b8/-/format/jpg/"
+}
+
+{
+  "ts": "2026-03-19T22:08:43.825Z",
+  "level": "info",
+  "message": "Posted successfully",
+  "listingId": "7004738",
+  "listingTitle": "Wolvenrade 145, Den Haag",
+  "mediaId": "18002527193911125",
+  "imageUrl": "https://1so6kc9c7w.ucarecd.net/381abf49-27ea-4e4a-9411-f3250b228ca2/-/format/jpg/"
+}
+
