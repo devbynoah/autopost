@@ -38,6 +38,8 @@ const {
   PUBLISH_WAIT_SECONDS = "5",
   LOG_FILE = "./output/post-log.jsonl",
   LISTING_ID,
+  CAROUSEL_ENABLED = "1",
+  CAROUSEL_IMAGE_URLS,
 } = process.env;
 
 function requireEnv(name, value) {
@@ -136,9 +138,8 @@ function buildCaption() {
   const rooms = ROOMS?.trim();
   const label = ENERGY_LABEL?.trim();
   const url = LISTING_URL?.trim();
-  const phone = "070-21 70 271";
-  const mobile = CONTACT_MOBILE?.trim();
-  const email = CONTACT_EMAIL?.trim() || "city@remax.nl";
+  const phone = "070-21 70 721";
+  const email = "city@remax.nl";
   const hashtags = buildHashtags();
   const cta = CTA_LINE?.trim() ||
     "Wilt u meer informatie ontvangen of een bezichtiging inplannen? Neem dan gerust contact met ons op, wij helpen u graag verder!";
@@ -164,7 +165,6 @@ function buildCaption() {
     cta,
     "",
     phone ? `T: ${phone}` : null,
-    mobile ? `M: ${mobile}` : null,
     email ? `E: ${email}` : null,
     "",
     hashtags,
@@ -193,7 +193,6 @@ function buildCaption() {
       cta,
       "",
       phone ? `T: ${phone}` : null,
-      mobile ? `M: ${mobile}` : null,
       email ? `E: ${email}` : null,
       "",
       hashtags,
@@ -229,7 +228,6 @@ function buildCaption() {
       cta,
       "",
       phone ? `T: ${phone}` : null,
-      mobile ? `M: ${mobile}` : null,
       email ? `E: ${email}` : null,
       "",
       hashtags,
@@ -351,6 +349,20 @@ async function validateImageUrl(url) {
   );
 }
 
+function isEnabled(value) {
+  return value !== "0" && String(value).toLowerCase() !== "false";
+}
+
+function getCarouselUrls(primaryUrl) {
+  if (!isEnabled(CAROUSEL_ENABLED)) return [];
+  const extras = String(CAROUSEL_IMAGE_URLS || "")
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean);
+
+  return [primaryUrl, ...extras].slice(0, 10);
+}
+
 async function publishWithRetry(creationId) {
   const retries = Math.max(0, Number(PUBLISH_RETRIES));
   const waitMs = Math.max(1000, Number(PUBLISH_WAIT_SECONDS) * 1000);
@@ -386,17 +398,9 @@ async function publishWithRetry(creationId) {
   }
 }
 
-async function postToInstagram() {
-  const imageUrl = await validateImageUrl(IMAGE_URL);
-  if (imageUrl && imageUrl !== IMAGE_URL) {
-    await updateEnvImageUrl(imageUrl);
-    console.log(`IMAGE_URL updated to shard URL: ${imageUrl}`);
-  }
-
-  // Step 1: Create media container
+async function createMediaContainer(params) {
   const createParams = new URLSearchParams({
-    image_url: imageUrl,
-    caption,
+    ...params,
     access_token: IG_ACCESS_TOKEN,
   });
 
@@ -410,19 +414,88 @@ async function postToInstagram() {
     throw new Error(`Create media failed: ${JSON.stringify(createJson)}`);
   }
 
-  const creationId = createJson.id;
-  if (!creationId) {
+  if (!createJson.id) {
     throw new Error("No creation_id returned.");
   }
 
-  // Step 2: Publish container (with retry)
+  return createJson.id;
+}
+
+async function normalizeImageUrl(url, { updatePrimary = false } = {}) {
+  const imageUrl = await validateImageUrl(url);
+  if (updatePrimary && imageUrl && imageUrl !== IMAGE_URL) {
+    await updateEnvImageUrl(imageUrl);
+    console.log(`IMAGE_URL updated to shard URL: ${imageUrl}`);
+  }
+  return imageUrl;
+}
+
+async function postSingleImage(imageUrl) {
+  const creationId = await createMediaContainer({
+    image_url: imageUrl,
+    caption,
+  });
+
   const publishJson = await publishWithRetry(creationId);
 
   console.log("Posted successfully:", publishJson);
   await logEvent("info", "Posted successfully", {
     mediaId: publishJson?.id || "",
+    type: "single",
     imageUrl,
   });
+}
+
+async function postCarousel(urls) {
+  if (urls.length < 2) {
+    return postSingleImage(urls[0]);
+  }
+
+  console.log(`Creating carousel with ${urls.length} slide(s)...`);
+
+  const childIds = [];
+  for (const [index, url] of urls.entries()) {
+    const childId = await createMediaContainer({
+      image_url: url,
+      is_carousel_item: "true",
+    });
+    childIds.push(childId);
+    console.log(`Created carousel item ${index + 1}/${urls.length}: ${childId}`);
+  }
+
+  const creationId = await createMediaContainer({
+    media_type: "CAROUSEL",
+    children: childIds.join(","),
+    caption,
+  });
+
+  const publishJson = await publishWithRetry(creationId);
+
+  console.log("Carousel posted successfully:", publishJson);
+  await logEvent("info", "Carousel posted successfully", {
+    mediaId: publishJson?.id || "",
+    type: "carousel",
+    slideCount: urls.length,
+    imageUrl: urls[0],
+  });
+}
+
+async function postToInstagram() {
+  const primaryImageUrl = await normalizeImageUrl(IMAGE_URL, {
+    updatePrimary: true,
+  });
+  const carouselUrls = getCarouselUrls(primaryImageUrl);
+
+  if (carouselUrls.length > 1) {
+    const validatedUrls = [];
+    for (const url of carouselUrls) {
+      validatedUrls.push(await normalizeImageUrl(url));
+    }
+    await postCarousel(validatedUrls);
+    return;
+  }
+
+  await postSingleImage(primaryImageUrl);
 }
 
 postToInstagram()

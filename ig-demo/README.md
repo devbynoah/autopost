@@ -5,8 +5,9 @@ Automatische Instagram-posting flow voor woningaanbod op basis van `kolibri-aanb
 ## Wat dit doet
 - Leest de **laatste woning** uit `aanbod/kolibri-aanbod.json`
 - Rendert een IG-kaart (image)
+- Rendert optioneel extra woningfoto's als carousel-slides
 - Uploadt de image naar Uploadcare
-- Post met caption naar Instagram
+- Post met caption naar Instagram als carousel: IG-kaart eerst, daarna woningfoto's
 - Logt elke post in `output/post-log.jsonl`
 - Optioneel: watcher die automatisch post bij nieuwe listings
 
@@ -52,6 +53,12 @@ UPLOADCARE_STORE=1
 UPLOADCARE_CDN_BASE=https://ucarecdn.com
 UPLOADCARE_TRANSFORM=-/format/jpg/
 
+# Instagram carousel
+CAROUSEL_ENABLED=1
+CAROUSEL_EXTRA_PHOTOS=6
+CAROUSEL_OUTPUT_DIR=./output/carousel
+CAROUSEL_IMAGE_URLS=
+
 # JSON bron
 JSON_SOURCE_PATH=./aanbod/kolibri-aanbod.json
 LISTING_ID=
@@ -77,6 +84,12 @@ npm run view-log
 ```
 
 ## Veelvoorkomende issues
+
+**Carousel in plaats van enkele foto**
+- Met `CAROUSEL_ENABLED=1` wordt de IG-kaart de eerste slide.
+- Daarna worden maximaal `CAROUSEL_EXTRA_PHOTOS` woningfoto's toegevoegd.
+- Instagram ondersteunt maximaal 10 slides, dus 1 kaart + maximaal 9 extra foto's.
+- Zet `CAROUSEL_ENABLED=0` om terug te gaan naar een enkele IG-card post.
 
 **Caption te lang**
 - Description wordt automatisch samengevat zodat het onder 2200 tekens blijft.

@@ -85,24 +85,24 @@ async function render() {
   const canvasW = 1080;
   const canvasH = 1350;
   const margin = 30;
-  const gap = 20;
+  const overlap = 124;
+  const imageGap = 20;
   const bottomH = 220;
   const topAreaH = canvasH - bottomH - margin * 2;
 
-  const leftW = 320;
-  const rightW = canvasW - margin * 2 - leftW - gap;
-  const leftH = Math.floor((topAreaH - gap * 2) / 3);
+  const leftW = 315;
+  const rightX = margin + leftW - overlap;
+  const rightW = canvasW - margin - rightX;
+  const leftH = leftW;
+  const sideStackH = leftH * 3 + imageGap * 2;
 
   const leftX = margin;
-  const leftY1 = margin;
-  const leftY2 = margin + leftH + gap;
-  const leftY3 = margin + (leftH + gap) * 2;
-
-  const rightX = margin + leftW + gap;
   const rightY = margin;
+  const leftY1 = Math.round(rightY + (topAreaH - sideStackH) / 2);
+  const leftY2 = leftY1 + leftH + imageGap;
+  const leftY3 = leftY1 + (leftH + imageGap) * 2;
 
-  const framePad = 6;
-  const frameStroke = 4;
+  const frameStroke = 5;
 
   const brandBlue = normalizeColor(BRAND_BLUE, "#0b1c39");
   const textColor = normalizeColor(TEXT_COLOR, "#ffffff");
@@ -113,26 +113,26 @@ async function render() {
   const rightPath = IMAGE_RIGHT || LOCAL_IMAGE_PATH;
 
   const leftBufferTop = await loadImageBuffer(topLeftPath, {
-    width: leftW - framePad * 2,
-    height: leftH - framePad * 2,
+    width: leftW,
+    height: leftH,
     fit: "cover",
   });
 
   const leftBufferMid = await loadImageBuffer(midLeftPath, {
-    width: leftW - framePad * 2,
-    height: leftH - framePad * 2,
+    width: leftW,
+    height: leftH,
     fit: "cover",
   });
 
   const leftBufferBottom = await loadImageBuffer(bottomLeftPath, {
-    width: leftW - framePad * 2,
-    height: leftH - framePad * 2,
+    width: leftW,
+    height: leftH,
     fit: "cover",
   });
 
   const rightBuffer = await loadImageBuffer(rightPath, {
-    width: rightW - framePad * 2,
-    height: topAreaH - framePad * 2,
+    width: rightW,
+    height: topAreaH,
     fit: "cover",
   });
   if (!leftBufferTop || !leftBufferMid || !leftBufferBottom || !rightBuffer) {
@@ -175,15 +175,13 @@ async function render() {
   const bgSvg = `
 <svg width="${canvasW}" height="${canvasH}" xmlns="http://www.w3.org/2000/svg">
   <rect x="0" y="0" width="${canvasW}" height="${canvasH}" fill="${brandBlue}" />
-  <rect x="${leftX}" y="${leftY1}" width="${leftW}" height="${leftH}" fill="#ffffff" />
-  <rect x="${leftX}" y="${leftY2}" width="${leftW}" height="${leftH}" fill="#ffffff" />
-  <rect x="${leftX}" y="${leftY3}" width="${leftW}" height="${leftH}" fill="#ffffff" />
-  <rect x="${rightX}" y="${rightY}" width="${rightW}" height="${topAreaH}" fill="#ffffff" />
+</svg>`;
 
+  const sideFrameSvg = `
+<svg width="${canvasW}" height="${canvasH}" xmlns="http://www.w3.org/2000/svg">
   <rect x="${leftX}" y="${leftY1}" width="${leftW}" height="${leftH}" fill="none" stroke="#0a0a0a" stroke-width="${frameStroke}" />
   <rect x="${leftX}" y="${leftY2}" width="${leftW}" height="${leftH}" fill="none" stroke="#0a0a0a" stroke-width="${frameStroke}" />
   <rect x="${leftX}" y="${leftY3}" width="${leftW}" height="${leftH}" fill="none" stroke="#0a0a0a" stroke-width="${frameStroke}" />
-  <rect x="${rightX}" y="${rightY}" width="${rightW}" height="${topAreaH}" fill="none" stroke="#0a0a0a" stroke-width="${frameStroke}" />
 </svg>`;
 
   const textSvg = `
@@ -200,25 +198,26 @@ async function render() {
   const composites = [
     { input: Buffer.from(bgSvg) },
     {
+      input: rightBuffer,
+      left: rightX,
+      top: rightY,
+    },
+    {
       input: leftBufferTop,
-      left: leftX + framePad,
-      top: leftY1 + framePad,
+      left: leftX,
+      top: leftY1,
     },
     {
       input: leftBufferMid,
-      left: leftX + framePad,
-      top: leftY2 + framePad,
+      left: leftX,
+      top: leftY2,
     },
     {
       input: leftBufferBottom,
-      left: leftX + framePad,
-      top: leftY3 + framePad,
+      left: leftX,
+      top: leftY3,
     },
-    {
-      input: rightBuffer,
-      left: rightX + framePad,
-      top: rightY + framePad,
-    },
+    { input: Buffer.from(sideFrameSvg) },
     { input: Buffer.from(textSvg) },
   ];
 
