@@ -91,3 +91,24 @@
   "imageUrl": "https://1so6kc9c7w.ucarecd.net/b37e9eef-a5db-4688-b647-9aa143150f93/-/format/jpg/"
 }
 
+{
+  "ts": "2026-07-03T09:27:04.394Z",
+  "level": "error",
+  "message": "Post failed",
+  "listingId": "7687623",
+  "listingTitle": "Bennekomstraat 67, Den Haag",
+  "error": "Create media failed: {\"error\":{\"message\":\"Error validating access token: Session has expired on Thursday, 25-Jun-26 08:00:00 PDT. The current time is Friday, 03-Jul-26 02:27:03 PDT.\",\"type\":\"OAuthException\",\"code\":190,\"error_subcode\":463,\"fbtrace_id\":\"A2T4GThcCT3-UoM_LTXQX44\"}}"
+}
+
+{
+  "ts": "2026-07-03T09:30:22.266Z",
+  "level": "info",
+  "message": "Carousel posted successfully",
+  "listingId": "7687623",
+  "listingTitle": "Bennekomstraat 67, Den Haag",
+  "mediaId": "18075779192691428",
+  "type": "carousel",
+  "slideCount": 10,
+  "imageUrl": "https://1so6kc9c7w.ucarecd.net/82560afd-429c-4291-8df4-57ed0eda0a25/-/format/jpg/"
+}
+
