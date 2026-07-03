@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import path from "path";
 import fetch from "node-fetch";
 import sharp from "sharp";
+import { selectListingPhotos } from "./photo-selection.js";
 
 const {
   JSON_SOURCE_PATH = "./aanbod/kolibri-aanbod.json",
@@ -77,6 +78,93 @@ async function clearOutputDir(dir) {
   );
 }
 
+async function renderTile(input, width, height) {
+  return sharp(input)
+    .resize({
+      width,
+      height,
+      fit: "cover",
+      position: "centre",
+    })
+    .sharpen({ sigma: 0.4, m1: 0.6, m2: 1.4 })
+    .toBuffer();
+}
+
+function getSlideLayout(index, photoCount) {
+  const gap = 12;
+
+  if (photoCount === 1) {
+    return [{ left: 0, top: 0, width: 1080, height: 1350 }];
+  }
+
+  if (photoCount === 2) {
+    const topHeight = Math.floor((1350 - gap) / 2);
+    return [
+      { left: 0, top: 0, width: 1080, height: topHeight },
+      {
+        left: 0,
+        top: topHeight + gap,
+        width: 1080,
+        height: 1350 - topHeight - gap,
+      },
+    ];
+  }
+
+  if (index % 3 === 1) {
+    const rowHeight = Math.floor((1350 - gap * 2) / 3);
+    return [
+      { left: 0, top: 0, width: 1080, height: rowHeight },
+      {
+        left: 0,
+        top: rowHeight + gap,
+        width: 1080,
+        height: rowHeight,
+      },
+      {
+        left: 0,
+        top: (rowHeight + gap) * 2,
+        width: 1080,
+        height: 1350 - (rowHeight + gap) * 2,
+      },
+    ];
+  }
+
+  if (index % 3 === 2) {
+    const smallWidth = Math.floor((1080 - gap) / 2);
+    const smallHeight = 518;
+    const largeY = smallHeight + gap;
+    return [
+      { left: 0, top: largeY, width: 1080, height: 1350 - largeY },
+      { left: 0, top: 0, width: smallWidth, height: smallHeight },
+      {
+        left: smallWidth + gap,
+        top: 0,
+        width: 1080 - smallWidth - gap,
+        height: smallHeight,
+      },
+    ];
+  }
+
+  const largeHeight = 820;
+  const smallY = largeHeight + gap;
+  const smallWidth = Math.floor((1080 - gap) / 2);
+  return [
+    { left: 0, top: 0, width: 1080, height: largeHeight },
+    {
+      left: 0,
+      top: smallY,
+      width: smallWidth,
+      height: 1350 - smallY,
+    },
+    {
+      left: smallWidth + gap,
+      top: smallY,
+      width: 1080 - smallWidth - gap,
+      height: 1350 - smallY,
+    },
+  ];
+}
+
 async function main() {
   const outputDir = path.resolve(CAROUSEL_OUTPUT_DIR);
   await clearOutputDir(outputDir);
@@ -91,56 +179,74 @@ async function main() {
     throw new Error("Listing not found for carousel photos.");
   }
 
-  const images = Array.isArray(listing.images) ? listing.images : [];
-  const uniqueImages = Array.from(new Set(images.filter(Boolean)));
-  const maxExtra = Math.min(9, Math.max(0, Number(CAROUSEL_EXTRA_PHOTOS) || 0));
-  const extraImages = uniqueImages.slice(0, maxExtra);
+  const { cardPhotos, carouselPhotos } = selectListingPhotos(listing);
+  const maxSlides = Math.min(
+    9,
+    Math.max(0, Number(CAROUSEL_EXTRA_PHOTOS) || 0)
+  );
+  const photosPerSlide = 3;
+  const extraImages = carouselPhotos.slice(0, maxSlides * photosPerSlide);
 
   if (extraImages.length === 0) {
-    console.log("No carousel extra photos found.");
+    console.log(
+      `No carousel photos remain after reserving ${cardPhotos.length} for the IG card.`
+    );
     return;
   }
 
-  for (const [index, source] of extraImages.entries()) {
+  const slides = Array.from(
+    { length: Math.ceil(extraImages.length / photosPerSlide) },
+    (_, index) =>
+      extraImages.slice(
+        index * photosPerSlide,
+        (index + 1) * photosPerSlide
+      )
+  );
+
+  for (const [index, sources] of slides.entries()) {
     try {
-      const input = await loadImage(source);
+      const inputs = await Promise.all(sources.map(loadImage));
       const outputPath = path.join(
         outputDir,
         `photo-${String(index + 1).padStart(2, "0")}.jpg`
       );
 
-      const background = await sharp(input)
-        .resize({
+      const layout = getSlideLayout(index, inputs.length);
+      const tiles = await Promise.all(
+        inputs.map(async (input, tileIndex) => {
+          const position = layout[tileIndex];
+          return {
+            input: await renderTile(
+              input,
+              position.width,
+              position.height
+            ),
+            left: position.left,
+            top: position.top,
+          };
+        })
+      );
+
+      await sharp({
+        create: {
           width: 1080,
           height: 1350,
-          fit: "cover",
-          position: "center",
-        })
-        .blur(18)
-        .modulate({ brightness: 0.82 })
-        .toBuffer();
-
-      const foreground = await sharp(input)
-        .resize({
-          width: 1080,
-          height: 1350,
-          fit: "inside",
-          withoutEnlargement: true,
-        })
-        .sharpen({ sigma: 0.45, m1: 0.7, m2: 1.6 })
-        .toBuffer();
-
-      await sharp(background)
-        .composite([{ input: foreground, gravity: "center" }])
+          channels: 3,
+          background: "#0b1c39",
+        },
+      })
+        .composite(tiles)
         .jpeg({
           quality: 96,
           chromaSubsampling: "4:4:4",
           mozjpeg: true,
         })
         .toFile(outputPath);
-      console.log(`Rendered carousel photo: ${outputPath}`);
+      console.log(
+        `Rendered carousel slide with ${sources.length} photos: ${outputPath}`
+      );
     } catch (err) {
-      console.warn(`Could not render carousel image: ${source}`);
+      console.warn(`Could not render carousel slide ${index + 1}.`);
       console.warn(err.message || err);
     }
   }

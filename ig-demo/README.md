@@ -87,7 +87,11 @@ npm run view-log
 
 **Carousel in plaats van enkele foto**
 - Met `CAROUSEL_ENABLED=1` wordt de IG-kaart de eerste slide.
-- Daarna worden maximaal `CAROUSEL_EXTRA_PHOTOS` woningfoto's toegevoegd.
+- Daarna worden maximaal `CAROUSEL_EXTRA_PHOTOS` collage-slides toegevoegd.
+- Elke collage-slide bevat maximaal drie woningfoto's en heeft hetzelfde formaat als de IG-kaart (`1080x1350`).
+- De slides wisselen tussen drie indelingen: groot boven, groot onder en drie brede fotostroken.
+- De eerste vier unieke foto's uit de makelaarsfeed worden voor de IG-kaart gereserveerd en niet opnieuw in de carousel gebruikt.
+- Bij minder beschikbare foto's wordt het aantal slides automatisch verlaagd en krijgt de laatste slide een passende layout.
 - Instagram ondersteunt maximaal 10 slides, dus 1 kaart + maximaal 9 extra foto's.
 - Zet `CAROUSEL_ENABLED=0` om terug te gaan naar een enkele IG-card post.
 

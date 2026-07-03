@@ -1,6 +1,7 @@
 ﻿import "dotenv/config";
 import fs from "fs/promises";
 import path from "path";
+import { selectListingPhotos } from "./photo-selection.js";
 
 const {
   JSON_SOURCE_PATH = "./aanbod/kolibri-aanbod.json",
@@ -133,13 +134,13 @@ async function main() {
   const address = [listing.street, listing.houseNumber].filter(Boolean).join(" ");
   const listingUrl = toUrl(LISTING_BASE_URL, listing.url);
 
-  const images = Array.isArray(listing.images) ? listing.images : [];
-  const fallbackImage = listing.image || images[0] || "";
+  const { cardPhotos } = selectListingPhotos(listing);
+  const fallbackImage = cardPhotos[0] || "";
 
-  const imageRight = images[0] || fallbackImage;
-  const imageTopLeft = images[1] || fallbackImage;
-  const imageMidLeft = images[2] || fallbackImage;
-  const imageBottomLeft = images[3] || fallbackImage;
+  const imageRight = cardPhotos[0] || fallbackImage;
+  const imageTopLeft = cardPhotos[1] || fallbackImage;
+  const imageMidLeft = cardPhotos[2] || fallbackImage;
+  const imageBottomLeft = cardPhotos[3] || fallbackImage;
 
   const rawDescription =
     listing.description ||
