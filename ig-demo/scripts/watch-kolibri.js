@@ -32,7 +32,7 @@ function run(cmd, args, options = {}) {
 
 async function readJson(filePath) {
   const raw = await fs.readFile(filePath, "utf8");
-  return JSON.parse(raw);
+  return JSON.parse(raw.replace(/^\uFEFF/, ""));
 }
 
 function normalizeId(value) {

@@ -53,7 +53,7 @@ function buildSubheadline() {
   if (custom) return custom;
   const address = normalizeString(ADDRESS);
   const city = normalizeString(CITY);
-  if (address && city) return `${address} te ${city}`;
+  if (address && city) return `${address}, ${city}`;
   return [address, city].filter(Boolean).join(", ");
 }
 

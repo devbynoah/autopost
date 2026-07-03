@@ -16,14 +16,25 @@ function normalizeString(value) {
 
 function cleanDescription(value) {
   let text = normalizeString(value)
-    .replace(/\s+/g, " ")
     .replace(/\uFFFD/g, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
     .trim();
   const englishIdx = text.toLowerCase().indexOf("english version");
   if (englishIdx >= 0) {
     text = text.slice(0, englishIdx).trim();
   }
-  return text;
+
+  return text
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .map((paragraph) => {
+      if (/^[-•]/.test(paragraph)) return paragraph;
+      if (/[.!?;:]$/.test(paragraph)) return paragraph;
+      return `${paragraph}.`;
+    })
+    .join(" ");
 }
 
 
@@ -67,7 +78,7 @@ async function updateEnv(values) {
 async function main() {
   const jsonPath = path.resolve(JSON_SOURCE_PATH);
   const raw = await fs.readFile(jsonPath, "utf8");
-  const data = JSON.parse(raw);
+  const data = JSON.parse(raw.replace(/^\uFEFF/, ""));
 
   if (!Array.isArray(data) || data.length === 0) {
     throw new Error("JSON contains no listings.");

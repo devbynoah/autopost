@@ -9,7 +9,7 @@ const {
   LISTING_ID,
   LISTING_QUERY,
   CAROUSEL_ENABLED = "1",
-  CAROUSEL_EXTRA_PHOTOS = "6",
+  CAROUSEL_EXTRA_PHOTOS = "9",
   CAROUSEL_OUTPUT_DIR = "./output/carousel",
 } = process.env;
 
@@ -24,7 +24,7 @@ function normalizeString(value) {
 
 async function readJson(filePath) {
   const raw = await fs.readFile(filePath, "utf8");
-  return JSON.parse(raw);
+  return JSON.parse(raw.replace(/^\uFEFF/, ""));
 }
 
 async function findListing() {
@@ -108,14 +108,35 @@ async function main() {
         outputDir,
         `photo-${String(index + 1).padStart(2, "0")}.jpg`
       );
-      await sharp(input)
+
+      const background = await sharp(input)
         .resize({
           width: 1080,
           height: 1350,
           fit: "cover",
           position: "center",
         })
-        .jpeg({ quality: 90 })
+        .blur(18)
+        .modulate({ brightness: 0.82 })
+        .toBuffer();
+
+      const foreground = await sharp(input)
+        .resize({
+          width: 1080,
+          height: 1350,
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .sharpen({ sigma: 0.45, m1: 0.7, m2: 1.6 })
+        .toBuffer();
+
+      await sharp(background)
+        .composite([{ input: foreground, gravity: "center" }])
+        .jpeg({
+          quality: 96,
+          chromaSubsampling: "4:4:4",
+          mozjpeg: true,
+        })
         .toFile(outputPath);
       console.log(`Rendered carousel photo: ${outputPath}`);
     } catch (err) {

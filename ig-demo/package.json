@@ -10,7 +10,6 @@
     "post": "node scripts/post.js",
     "render": "node scripts/render-image.js",
     "render-carousel": "node scripts/render-carousel-images.js",
-    "prerender-post": "node scripts/apply-from-json.js",
     "render-post": "node scripts/apply-from-json.js && node scripts/render-image.js && node scripts/render-carousel-images.js && node scripts/upload-to-uploadcare.js && node scripts/upload-carousel-images.js && node scripts/post.js",
     "render-post-pages": "node scripts/render-post-pages.js",
     "watch-kolibri": "node scripts/watch-kolibri.js",

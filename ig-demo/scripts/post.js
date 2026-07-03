@@ -176,9 +176,10 @@ function buildCaption() {
 
   const MAX_CAPTION = 2200;
   if (description && caption.length > MAX_CAPTION) {
-    const prunedDescription = description
-      .split(/\b(?:indeling|kenmerken|features|bijzonderheden|details)\b/i)[0]
-      .trim() || description;
+    const sectionStartPattern =
+      /\b(?:Indeling|Kenmerken|Features|Bijzonderheden|Details)\b(?=\s+(?:Via|[-:]))/;
+    const prunedDescription =
+      description.split(sectionStartPattern)[0].trim() || description;
 
     const sentences = prunedDescription
       .split(/(?<=[.!?])\s+/)
