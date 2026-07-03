@@ -23,6 +23,14 @@ function normalizeString(value) {
   return String(value).trim().replace(/^\"|\"$/g, "");
 }
 
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 async function readJson(filePath) {
   const raw = await fs.readFile(filePath, "utf8");
   return JSON.parse(raw.replace(/^\uFEFF/, ""));
@@ -78,23 +86,38 @@ async function clearOutputDir(dir) {
   );
 }
 
-async function renderTile(input, width, height) {
+async function renderTile(input, width, height, fit = "cover") {
   return sharp(input)
     .resize({
       width,
       height,
-      fit: "cover",
-      position: "centre",
+      fit,
+      position: sharp.strategy.attention,
+      background: "#0b1c39",
     })
     .sharpen({ sigma: 0.4, m1: 0.6, m2: 1.4 })
+    .jpeg({
+      quality: 96,
+      chromaSubsampling: "4:4:4",
+      mozjpeg: true,
+    })
     .toBuffer();
 }
 
-function getSlideLayout(index, photoCount) {
+function getSlideLayout(index, entries, layoutOverride = "") {
   const gap = 12;
+  const photoCount = entries.length;
 
   if (photoCount === 1) {
-    return [{ left: 0, top: 0, width: 1080, height: 1350 }];
+    return [
+      {
+        left: 0,
+        top: 0,
+        width: 1080,
+        height: 1350,
+        fit: "contain",
+      },
+    ];
   }
 
   if (photoCount === 2) {
@@ -110,26 +133,28 @@ function getSlideLayout(index, photoCount) {
     ];
   }
 
-  if (index % 3 === 1) {
-    const rowHeight = Math.floor((1350 - gap * 2) / 3);
+  if (layoutOverride === "two-top-one-bottom") {
+    const topWidth = Math.floor((1080 - gap) / 2);
+    const topHeight = 518;
+    const bottomY = topHeight + gap;
     return [
-      { left: 0, top: 0, width: 1080, height: rowHeight },
+      { left: 0, top: 0, width: topWidth, height: topHeight },
       {
-        left: 0,
-        top: rowHeight + gap,
-        width: 1080,
-        height: rowHeight,
+        left: topWidth + gap,
+        top: 0,
+        width: 1080 - topWidth - gap,
+        height: topHeight,
       },
       {
         left: 0,
-        top: (rowHeight + gap) * 2,
+        top: bottomY,
         width: 1080,
-        height: 1350 - (rowHeight + gap) * 2,
+        height: 1350 - bottomY,
       },
     ];
   }
 
-  if (index % 3 === 2) {
+  if (index % 2 === 1) {
     const smallWidth = Math.floor((1080 - gap) / 2);
     const smallHeight = 518;
     const largeY = smallHeight + gap;
@@ -165,6 +190,65 @@ function getSlideLayout(index, photoCount) {
   ];
 }
 
+async function renderCtaSlide(listing, heroSource, outputPath) {
+  const heroInput = await loadImage(heroSource);
+  const hero = await sharp(heroInput)
+    .resize({
+      width: 1080,
+      height: 710,
+      fit: "cover",
+      position: sharp.strategy.attention,
+    })
+    .toBuffer();
+  const logo = await sharp(
+    path.resolve("./assets/img/remax-city-logo-wit.png")
+  )
+    .resize({ width: 300, withoutEnlargement: true })
+    .toBuffer();
+  const address =
+    [listing.street, listing.houseNumber].filter(Boolean).join(" ") ||
+    listing.title ||
+    "";
+  const location = [address, listing.city].filter(Boolean).join(", ");
+  const text = Buffer.from(`
+    <svg width="1080" height="1350" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="710" width="1080" height="640" fill="#0b1c39"/>
+      <rect x="72" y="815" width="94" height="8" fill="#e11d2e"/>
+      <text x="72" y="900" fill="#ffffff" font-family="Arial, sans-serif"
+        font-size="58" font-weight="700">INTERESSE IN DEZE WONING?</text>
+      <text x="72" y="978" fill="#ffffff" font-family="Arial, sans-serif"
+        font-size="46" font-weight="400">Plan een bezichtiging</text>
+      <text x="72" y="1055" fill="#dbe6f5" font-family="Arial, sans-serif"
+        font-size="32">${escapeXml(location)}</text>
+      <line x1="72" y1="1105" x2="1008" y2="1105" stroke="#52627c" stroke-width="2"/>
+      <text x="72" y="1175" fill="#ffffff" font-family="Arial, sans-serif"
+        font-size="30">T: 070-21 70 721</text>
+      <text x="72" y="1225" fill="#ffffff" font-family="Arial, sans-serif"
+        font-size="30">E: city@remax.nl</text>
+    </svg>
+  `);
+
+  await sharp({
+    create: {
+      width: 1080,
+      height: 1350,
+      channels: 3,
+      background: "#0b1c39",
+    },
+  })
+    .composite([
+      { input: hero, left: 0, top: 0 },
+      { input: text, left: 0, top: 0 },
+      { input: logo, left: 708, top: 1240 - 95 },
+    ])
+    .jpeg({
+      quality: 96,
+      chromaSubsampling: "4:4:4",
+      mozjpeg: true,
+    })
+    .toFile(outputPath);
+}
+
 async function main() {
   const outputDir = path.resolve(CAROUSEL_OUTPUT_DIR);
   await clearOutputDir(outputDir);
@@ -184,42 +268,95 @@ async function main() {
     9,
     Math.max(0, Number(CAROUSEL_EXTRA_PHOTOS) || 0)
   );
+  const regularPhotoSlideLimit = Math.max(0, maxSlides - 1);
   const photosPerSlide = 3;
-  const extraImages = carouselPhotos.slice(0, maxSlides * photosPerSlide);
+  const preferredLastSlide = Array.isArray(listing.carouselLastSlideImages)
+    ? listing.carouselLastSlideImages
+        .filter((source) => carouselPhotos.includes(source))
+        .slice(0, photosPerSlide)
+    : [];
+  const preferredSet = new Set(preferredLastSlide);
+  const standardCarouselPhotos = carouselPhotos.filter(
+    (source) => !preferredSet.has(source)
+  );
+  const standardSlideLimit = Math.max(
+    0,
+    regularPhotoSlideLimit - (preferredLastSlide.length > 0 ? 1 : 0)
+  );
+  const extraImages = standardCarouselPhotos.slice(
+    0,
+    standardSlideLimit * photosPerSlide
+  );
 
-  if (extraImages.length === 0) {
-    console.log(
-      `No carousel photos remain after reserving ${cardPhotos.length} for the IG card.`
+  async function loadEntries(sources) {
+    return Promise.all(
+      sources.map(async (source) => {
+        const input = await loadImage(source);
+        const metadata = await sharp(input).metadata();
+        return {
+          source,
+          input,
+          orientation:
+            (metadata.height || 0) > (metadata.width || 0)
+              ? "portrait"
+              : "landscape",
+        };
+      })
     );
-    return;
   }
 
-  const slides = Array.from(
-    { length: Math.ceil(extraImages.length / photosPerSlide) },
+  const entries = await loadEntries(extraImages);
+  const regularSlides = Array.from(
+    { length: Math.ceil(entries.length / photosPerSlide) },
     (_, index) =>
-      extraImages.slice(
+      entries.slice(
         index * photosPerSlide,
         (index + 1) * photosPerSlide
       )
   );
+  const slides = [...regularSlides];
 
-  for (const [index, sources] of slides.entries()) {
+  if (preferredLastSlide.length > 0) {
+    const preferredEntries = await loadEntries(preferredLastSlide);
+    const heroSource = normalizeString(listing.carouselLastSlideHeroImage);
+    const heroIndex = preferredEntries.findIndex(
+      (entry) => entry.source === heroSource
+    );
+
+    if (
+      heroIndex >= 0 &&
+      normalizeString(listing.carouselLastSlideLayout) ===
+        "two-top-one-bottom"
+    ) {
+      const [heroEntry] = preferredEntries.splice(heroIndex, 1);
+      preferredEntries.push(heroEntry);
+    }
+
+    slides.push(preferredEntries);
+  }
+
+  for (const [index, slideEntries] of slides.entries()) {
     try {
-      const inputs = await Promise.all(sources.map(loadImage));
       const outputPath = path.join(
         outputDir,
         `photo-${String(index + 1).padStart(2, "0")}.jpg`
       );
 
-      const layout = getSlideLayout(index, inputs.length);
+      const isPreferredLastSlide =
+        preferredLastSlide.length > 0 && index === slides.length - 1;
+      const layoutOverride = isPreferredLastSlide
+        ? normalizeString(listing.carouselLastSlideLayout)
+        : "";
+      const layout = getSlideLayout(index, slideEntries, layoutOverride);
       const tiles = await Promise.all(
-        inputs.map(async (input, tileIndex) => {
+        slideEntries.map(async (entry, tileIndex) => {
           const position = layout[tileIndex];
           return {
             input: await renderTile(
-              input,
+              entry.input,
               position.width,
-              position.height
+              position.height,
+              position.fit
             ),
             left: position.left,
             top: position.top,
@@ -243,12 +380,21 @@ async function main() {
         })
         .toFile(outputPath);
       console.log(
-        `Rendered carousel slide with ${sources.length} photos: ${outputPath}`
+        `Rendered carousel slide with ${slideEntries.length} photos: ${outputPath}`
       );
     } catch (err) {
       console.warn(`Could not render carousel slide ${index + 1}.`);
       console.warn(err.message || err);
     }
+  }
+
+  if (maxSlides > 0 && cardPhotos[0]) {
+    const ctaPath = path.join(
+      outputDir,
+      `photo-${String(slides.length + 1).padStart(2, "0")}.jpg`
+    );
+    await renderCtaSlide(listing, cardPhotos[0], ctaPath);
+    console.log(`Rendered carousel CTA slide: ${ctaPath}`);
   }
 }
 

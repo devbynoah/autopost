@@ -612,6 +612,13 @@
       "https://venumfilestore.blob.core.windows.net/pub/19bf6eeb/fe93/4679/b477/b1a20256ddf8/$l/bennekomstraat%2067-1e.jpg",
       "https://venumfilestore.blob.core.windows.net/pub/77e2d5bb/7c49/4a66/b6ab/984bad723794/$l/bennekomstraat%2067-1e-3d.jpg"
     ],
+    "carouselLastSlideImages": [
+      "https://venumfilestore.blob.core.windows.net/pub/4503502d/04d8/4fe0/9c25/75fb08e60b69/$l/bennekomstraat%2067_29.jpg",
+      "https://venumfilestore.blob.core.windows.net/pub/1872f501/0204/4e14/82ea/70327048357c/$l/bennekomstraat%2067_30.jpg",
+      "https://venumfilestore.blob.core.windows.net/pub/0e3e6c07/8f9e/4151/ae7e/a7fafa6e63d8/$l/bennekomstraat%2067_31.jpg"
+    ],
+    "carouselLastSlideLayout": "two-top-one-bottom",
+    "carouselLastSlideHeroImage": "https://venumfilestore.blob.core.windows.net/pub/1872f501/0204/4e14/82ea/70327048357c/$l/bennekomstraat%2067_30.jpg",
     "url": "/aanbod/woningen/bennekomstraat-67-den-haag",
     "sourceUrl": "#aanbod",
     "slug": "bennekomstraat-67-den-haag"

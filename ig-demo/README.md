@@ -89,9 +89,14 @@ npm run view-log
 - Met `CAROUSEL_ENABLED=1` wordt de IG-kaart de eerste slide.
 - Daarna worden maximaal `CAROUSEL_EXTRA_PHOTOS` collage-slides toegevoegd.
 - Elke collage-slide bevat maximaal drie woningfoto's en heeft hetzelfde formaat als de IG-kaart (`1080x1350`).
-- De slides wisselen tussen drie indelingen: groot boven, groot onder en drie brede fotostroken.
+- De slides wisselen tussen twee indelingen: groot boven met twee foto's onder, en twee foto's boven met een groot beeld onder.
+- Foto's vullen hun vak zonder vervaagde achtergrond; de uitsnede gebruikt aandachtspunt-detectie.
 - De eerste vier unieke foto's uit de makelaarsfeed worden voor de IG-kaart gereserveerd en niet opnieuw in de carousel gebruikt.
 - Bij minder beschikbare foto's wordt het aantal slides automatisch verlaagd en krijgt de laatste slide een passende layout.
+- De laatste slide is een vaste call-to-action met woningadres, telefoonnummer en `city@remax.nl`.
+- Met `carouselLastSlideImages` in een woningrecord kunnen maximaal drie belangrijke foto's bewust op de laatste fotocollage worden geplaatst.
+- Met `carouselLastSlideLayout: "two-top-one-bottom"` kan die fotoset twee beelden boven en een breed beeld onder gebruiken.
+- Met `carouselLastSlideHeroImage` wordt het belangrijkste overzichtsbeeld automatisch in het grote vak geplaatst, onafhankelijk van de bronvolgorde.
 - Instagram ondersteunt maximaal 10 slides, dus 1 kaart + maximaal 9 extra foto's.
 - Zet `CAROUSEL_ENABLED=0` om terug te gaan naar een enkele IG-card post.
 
