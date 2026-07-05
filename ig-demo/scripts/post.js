@@ -2,6 +2,7 @@
 import fetch from "node-fetch";
 import fs from "fs/promises";
 import path from "path";
+import { config, updateRuntimeConfig } from "./runtime-config.js";
 
 const {
   IG_USER_ID,
@@ -40,17 +41,15 @@ const {
   LISTING_ID,
   CAROUSEL_ENABLED = "1",
   CAROUSEL_IMAGE_URLS,
-} = process.env;
+  PUBLISHED_LISTINGS_FILE = "./output/published-listings.json",
+  FORCE_POST = "0",
+} = config;
 
 function requireEnv(name, value) {
   if (!value) {
     throw new Error(`Missing ${name}. Set it in .env`);
   }
 }
-
-requireEnv("IG_USER_ID", IG_USER_ID);
-requireEnv("IG_ACCESS_TOKEN", IG_ACCESS_TOKEN);
-requireEnv("IMAGE_URL", IMAGE_URL);
 
 function formatPrice(value) {
   if (!value) return null;
@@ -249,6 +248,59 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function forcePostEnabled() {
+  return FORCE_POST === "1" || String(FORCE_POST).toLowerCase() === "true";
+}
+
+async function readPublishedListings() {
+  try {
+    return JSON.parse(
+      await fs.readFile(path.resolve(PUBLISHED_LISTINGS_FILE), "utf8")
+    );
+  } catch {
+    return {};
+  }
+}
+
+async function ensureNotAlreadyPublished() {
+  if (!LISTING_ID || forcePostEnabled()) return true;
+  const published = await readPublishedListings();
+  if (published[String(LISTING_ID)]) {
+    console.log(
+      `Listing ${LISTING_ID} was already published; skipping. Set FORCE_POST=1 for an intentional repost.`
+    );
+    return false;
+  }
+  return true;
+}
+
+async function recordPublishedListing(mediaId, type) {
+  if (!LISTING_ID) return;
+  const filePath = path.resolve(PUBLISHED_LISTINGS_FILE);
+  const published = await readPublishedListings();
+  published[String(LISTING_ID)] = {
+    mediaId,
+    type,
+    publishedAt: new Date().toISOString(),
+    title: LISTING_TITLE || "",
+  };
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const tempPath = `${filePath}.${process.pid}.tmp`;
+  await fs.writeFile(tempPath, `${JSON.stringify(published, null, 2)}\n`, "utf8");
+  await fs.rename(tempPath, filePath);
+}
+
+async function recordPublishedListingSafely(mediaId, type) {
+  try {
+    await recordPublishedListing(mediaId, type);
+  } catch (err) {
+    await logEvent("error", "Post succeeded but idempotency record failed", {
+      mediaId,
+      error: err?.message || String(err),
+    });
+  }
+}
+
 async function logEvent(level, message, extra = {}) {
   try {
     const logPath = path.resolve(LOG_FILE);
@@ -266,32 +318,6 @@ async function logEvent(level, message, extra = {}) {
   } catch {
     // Ignore logging errors
   }
-}
-
-async function updateEnvImageUrl(url) {
-  const envPath = path.resolve(".env");
-  const content = await fs.readFile(envPath, "utf8");
-  const lines = content.split(/\r?\n/);
-  let replaced = false;
-  const next = lines.map((line) => {
-    const normalized = line.replace(/^\uFEFF/, "");
-    if (normalized.startsWith("IMAGE_URL=")) {
-      if (!replaced) {
-        replaced = true;
-        return `IMAGE_URL=${url}`;
-      }
-      return null;
-    }
-    return line;
-  });
-  if (!replaced) {
-    next.unshift(`IMAGE_URL=${url}`);
-  }
-  await fs.writeFile(
-    envPath,
-    next.filter((line) => line !== null).join("\n"),
-    "utf8"
-  );
 }
 
 async function validateImageUrl(url) {
@@ -425,7 +451,7 @@ async function createMediaContainer(params) {
 async function normalizeImageUrl(url, { updatePrimary = false } = {}) {
   const imageUrl = await validateImageUrl(url);
   if (updatePrimary && imageUrl && imageUrl !== IMAGE_URL) {
-    await updateEnvImageUrl(imageUrl);
+    await updateRuntimeConfig({ IMAGE_URL: imageUrl });
     console.log(`IMAGE_URL updated to shard URL: ${imageUrl}`);
   }
   return imageUrl;
@@ -445,6 +471,7 @@ async function postSingleImage(imageUrl) {
     type: "single",
     imageUrl,
   });
+  await recordPublishedListingSafely(publishJson?.id || "", "single");
 }
 
 async function postCarousel(urls) {
@@ -479,9 +506,14 @@ async function postCarousel(urls) {
     slideCount: urls.length,
     imageUrl: urls[0],
   });
+  await recordPublishedListingSafely(publishJson?.id || "", "carousel");
 }
 
 async function postToInstagram() {
+  if (!(await ensureNotAlreadyPublished())) return;
+  requireEnv("IG_USER_ID", IG_USER_ID);
+  requireEnv("IG_ACCESS_TOKEN", IG_ACCESS_TOKEN);
+  requireEnv("IMAGE_URL", IMAGE_URL);
   const primaryImageUrl = await normalizeImageUrl(IMAGE_URL, {
     updatePrimary: true,
   });

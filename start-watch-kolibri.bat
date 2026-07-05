@@ -1,3 +1,3 @@
 @echo off
-cd /d C:\Users\N.Weerwag\Projecten\autopost\ig-demo
+cd /d "%~dp0ig-demo"
 npm run watch-kolibri

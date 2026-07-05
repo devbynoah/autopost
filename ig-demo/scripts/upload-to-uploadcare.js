@@ -2,6 +2,8 @@
 import fs from "fs/promises";
 import path from "path";
 import { Blob } from "buffer";
+import crypto from "crypto";
+import { config, updateRuntimeConfig } from "./runtime-config.js";
 
 const {
   OUTPUT_IMAGE_PATH = "./output/ig-card.jpg",
@@ -10,7 +12,9 @@ const {
   UPLOADCARE_CDN_BASE = "https://ucarecdn.com",
   UPLOADCARE_TRANSFORM = "-/format/jpg/",
   UPLOADCARE_FILENAME = "",
-} = process.env;
+  UPLOADCARE_SIGNED_UPLOADS = "0",
+  UPLOADCARE_SECRET_KEY,
+} = config;
 
 function requireEnv(name, value) {
   if (!value) {
@@ -27,30 +31,16 @@ function buildCdnUrl(base, fileId, transform, filename) {
   return `${trimmedBase}/${fileId}${cleanTransform}${cleanFilename}`;
 }
 
-async function updateEnvImageUrl(url) {
-  const envPath = path.resolve(".env");
-  const content = await fs.readFile(envPath, "utf8");
-  const lines = content.split(/\r?\n/);
-  let replaced = false;
-  const next = lines.map((line) => {
-    const normalized = line.replace(/^\uFEFF/, "");
-    if (normalized.startsWith("IMAGE_URL=")) {
-      if (!replaced) {
-        replaced = true;
-        return `IMAGE_URL=${url}`;
-      }
-      return null;
-    }
-    return line;
-  });
-  if (!replaced) {
-    next.unshift(`IMAGE_URL=${url}`);
-  }
-  await fs.writeFile(
-    envPath,
-    next.filter((line) => line !== null).join("\n"),
-    "utf8"
-  );
+function addUploadSecurity(form) {
+  if (UPLOADCARE_SIGNED_UPLOADS !== "1") return;
+  requireEnv("UPLOADCARE_SECRET_KEY", UPLOADCARE_SECRET_KEY);
+  const expire = String(Math.floor(Date.now() / 1000) + 30 * 60);
+  const signature = crypto
+    .createHmac("sha256", UPLOADCARE_SECRET_KEY)
+    .update(expire)
+    .digest("hex");
+  form.append("signature", signature);
+  form.append("expire", expire);
 }
 
 async function main() {
@@ -63,6 +53,7 @@ async function main() {
   const form = new FormData();
   form.append("UPLOADCARE_PUB_KEY", UPLOADCARE_PUBLIC_KEY);
   form.append("UPLOADCARE_STORE", UPLOADCARE_STORE);
+  addUploadSecurity(form);
   form.append(
     "file",
     new Blob([buffer], { type: "image/jpeg" }),
@@ -112,13 +103,15 @@ async function main() {
     const base = cdnUrl.replace(/\/$/, "");
     imageUrl = `${base}${cleanTransform}${cleanFilename}`;
   } else {
-    imageUrl = `https://1so6kc9c7w.ucarecd.net/${fileId.replace(
-      /^\/+|\/+$/g,
-      ""
-    )}${cleanTransform}${cleanFilename}`;
+    imageUrl = buildCdnUrl(
+      UPLOADCARE_CDN_BASE,
+      fileId.replace(/^\/+|\/+$/g, ""),
+      UPLOADCARE_TRANSFORM,
+      UPLOADCARE_FILENAME
+    );
   }
 
-  await updateEnvImageUrl(imageUrl);
+  await updateRuntimeConfig({ IMAGE_URL: imageUrl });
   console.log(`Uploadcare URL set to: ${imageUrl}`);
 }
 

@@ -1,6 +1,7 @@
 ﻿import fs from "fs/promises";
 import path from "path";
 import { spawn } from "child_process";
+import { config } from "./runtime-config.js";
 
 const {
   JSON_SOURCE_PATH = "./aanbod/kolibri-aanbod.json",
@@ -9,7 +10,7 @@ const {
   RETRY_COOLDOWN_SECONDS = "60",
   SKIP_INITIAL_POST = "1",
   POST_DELAY_SECONDS = "15",
-} = process.env;
+} = config;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -19,7 +20,7 @@ function run(cmd, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
       stdio: "inherit",
-      shell: true,
+      shell: false,
       ...options,
     });
     child.on("error", (err) => reject(err));
@@ -130,7 +131,7 @@ async function main() {
         for (const item of pending) {
           const id = normalizeId(item?.id);
           if (!id) continue;
-          await run("npm", ["run", "render-post"], {
+          await run(process.execPath, ["scripts/run-production-post.js"], {
             cwd: process.cwd(),
             env: { ...process.env, LISTING_ID: id, LISTING_QUERY: "" },
           });

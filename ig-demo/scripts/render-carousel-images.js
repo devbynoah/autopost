@@ -4,6 +4,7 @@ import path from "path";
 import fetch from "node-fetch";
 import sharp from "sharp";
 import { selectListingPhotos } from "./photo-selection.js";
+import { config } from "./runtime-config.js";
 
 const {
   JSON_SOURCE_PATH = "./aanbod/kolibri-aanbod.json",
@@ -12,7 +13,7 @@ const {
   CAROUSEL_ENABLED = "1",
   CAROUSEL_EXTRA_PHOTOS = "9",
   CAROUSEL_OUTPUT_DIR = "./output/carousel",
-} = process.env;
+} = config;
 
 function isEnabled(value) {
   return value !== "0" && String(value).toLowerCase() !== "false";

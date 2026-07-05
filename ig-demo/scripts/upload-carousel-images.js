@@ -2,14 +2,19 @@ import "dotenv/config";
 import fs from "fs/promises";
 import path from "path";
 import { Blob } from "buffer";
+import crypto from "crypto";
+import { config, updateRuntimeConfig } from "./runtime-config.js";
 
 const {
   CAROUSEL_OUTPUT_DIR = "./output/carousel",
   UPLOADCARE_PUBLIC_KEY,
   UPLOADCARE_STORE = "1",
+  UPLOADCARE_CDN_BASE = "https://ucarecdn.com",
   UPLOADCARE_TRANSFORM = "-/format/jpg/",
   UPLOADCARE_FILENAME = "",
-} = process.env;
+  UPLOADCARE_SIGNED_UPLOADS = "0",
+  UPLOADCARE_SECRET_KEY,
+} = config;
 
 function requireEnv(name, value) {
   if (!value) {
@@ -17,33 +22,16 @@ function requireEnv(name, value) {
   }
 }
 
-async function updateEnvValue(key, value) {
-  const envPath = path.resolve(".env");
-  const content = await fs.readFile(envPath, "utf8");
-  const lines = content.split(/\r?\n/);
-  let replaced = false;
-
-  const next = lines.map((line) => {
-    const normalized = line.replace(/^\uFEFF/, "");
-    if (normalized.startsWith(`${key}=`)) {
-      if (!replaced) {
-        replaced = true;
-        return `${key}=${value}`;
-      }
-      return null;
-    }
-    return line;
-  });
-
-  if (!replaced) {
-    next.push(`${key}=${value}`);
-  }
-
-  await fs.writeFile(
-    envPath,
-    next.filter((line) => line !== null).join("\n"),
-    "utf8"
-  );
+function addUploadSecurity(form) {
+  if (UPLOADCARE_SIGNED_UPLOADS !== "1") return;
+  requireEnv("UPLOADCARE_SECRET_KEY", UPLOADCARE_SECRET_KEY);
+  const expire = String(Math.floor(Date.now() / 1000) + 30 * 60);
+  const signature = crypto
+    .createHmac("sha256", UPLOADCARE_SECRET_KEY)
+    .update(expire)
+    .digest("hex");
+  form.append("signature", signature);
+  form.append("expire", expire);
 }
 
 async function uploadImage(filePath) {
@@ -51,6 +39,7 @@ async function uploadImage(filePath) {
   const form = new FormData();
   form.append("UPLOADCARE_PUB_KEY", UPLOADCARE_PUBLIC_KEY);
   form.append("UPLOADCARE_STORE", UPLOADCARE_STORE);
+  addUploadSecurity(form);
   form.append(
     "file",
     new Blob([buffer], { type: "image/jpeg" }),
@@ -99,7 +88,7 @@ async function uploadImage(filePath) {
     return `${cdnUrl.replace(/\/$/, "")}${cleanTransform}${cleanFilename}`;
   }
 
-  return `https://1so6kc9c7w.ucarecd.net/${fileId.replace(
+  return `${UPLOADCARE_CDN_BASE.replace(/\/$/, "")}/${fileId.replace(
     /^\/+|\/+$/g,
     ""
   )}${cleanTransform}${cleanFilename}`;
@@ -120,7 +109,7 @@ async function main() {
   }
 
   if (files.length === 0) {
-    await updateEnvValue("CAROUSEL_IMAGE_URLS", "");
+    await updateRuntimeConfig({ CAROUSEL_IMAGE_URLS: "" });
     console.log("No carousel images to upload.");
     return;
   }
@@ -133,7 +122,7 @@ async function main() {
     console.log(`Uploaded carousel photo: ${url}`);
   }
 
-  await updateEnvValue("CAROUSEL_IMAGE_URLS", urls.join(","));
+  await updateRuntimeConfig({ CAROUSEL_IMAGE_URLS: urls.join(",") });
   console.log(`CAROUSEL_IMAGE_URLS set with ${urls.length} photo(s).`);
 }
 

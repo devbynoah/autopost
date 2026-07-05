@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import path from "path";
 import fetch from "node-fetch";
 import sharp from "sharp";
+import { config } from "./runtime-config.js";
 
 const {
   LOCAL_IMAGE_PATH,
@@ -21,7 +22,7 @@ const {
   SUBHEADLINE_TEXT,
   LOGO_OFFSET_Y = "0",
   LOGO_OFFSET_X = "0",
-} = process.env;
+} = config;
 
 function requireEnv(name, value) {
   if (!value) {

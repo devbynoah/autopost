@@ -2,13 +2,14 @@
 import fs from "fs/promises";
 import path from "path";
 import { selectListingPhotos } from "./photo-selection.js";
+import { config, replaceRuntimeConfig } from "./runtime-config.js";
 
 const {
   JSON_SOURCE_PATH = "./aanbod/kolibri-aanbod.json",
   LISTING_ID,
   LISTING_QUERY,
   LISTING_BASE_URL,
-} = process.env;
+} = config;
 
 function normalizeString(value) {
   if (!value) return "";
@@ -44,36 +45,6 @@ function toUrl(base, rel) {
   const trimmedBase = base.replace(/\/$/, "");
   const trimmedRel = rel.replace(/^\//, "");
   return `${trimmedBase}/${trimmedRel}`;
-}
-
-async function updateEnv(values) {
-  const envPath = path.resolve(".env");
-  const content = await fs.readFile(envPath, "utf8");
-  const lines = content.split(/\r?\n/);
-
-  const keys = Object.keys(values);
-  const next = lines.map((line) => {
-    for (const key of keys) {
-      if (line.startsWith(`${key}=`)) {
-        return `${key}=${values[key]}`;
-      }
-    }
-    return line;
-  });
-
-  const existingKeys = new Set(
-    lines
-      .filter((line) => line.includes("="))
-      .map((line) => line.split("=")[0])
-  );
-
-  for (const key of keys) {
-    if (!existingKeys.has(key)) {
-      next.push(`${key}=${values[key]}`);
-    }
-  }
-
-  await fs.writeFile(envPath, next.join("\n"), "utf8");
 }
 
 async function main() {
@@ -175,11 +146,13 @@ async function main() {
     IMAGE_MID_LEFT: imageMidLeft,
     IMAGE_BOTTOM_LEFT: imageBottomLeft,
     IMAGE_RIGHT: imageRight,
+    IMAGE_URL: "",
+    CAROUSEL_IMAGE_URLS: "",
   };
 
-  await updateEnv(values);
+  await replaceRuntimeConfig(values);
 
-  console.log(".env updated from JSON listing:", listing.id);
+  console.log("Runtime config updated from JSON listing:", listing.id);
 }
 
 main().catch((err) => {

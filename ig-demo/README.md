@@ -1,115 +1,137 @@
-# ig-demo
+# Instagram woning-autopost
 
-Automatische Instagram-posting flow voor woningaanbod op basis van `kolibri-aanbod.json`.
+Productieflow voor het automatisch publiceren van nieuwe woningen op Instagram.
 
-## Wat dit doet
-- Leest de **laatste woning** uit `aanbod/kolibri-aanbod.json`
-- Rendert een IG-kaart (image)
-- Rendert optioneel extra woningfoto's als carousel-slides
-- Uploadt de image naar Uploadcare
-- Post met caption naar Instagram als carousel: IG-kaart eerst, daarna woningfoto's
-- Logt elke post in `output/post-log.jsonl`
-- Optioneel: watcher die automatisch post bij nieuwe listings
+## Flow
 
-## Vereisten
-- Node.js 18+ (node-fetch en ES modules)
-- NPM dependencies ge?nstalleerd
+1. Leest een woning uit `aanbod/kolibri-aanbod.json`.
+2. Maakt een IG-card van `1080x1350`.
+3. Maakt maximaal acht fotocollages en een CTA-slide.
+4. Uploadt de afbeeldingen naar Uploadcare.
+5. Publiceert een Instagram-carousel met maximaal tien slides.
+6. Registreert de woning als gepubliceerd om dubbele posts te voorkomen.
+
+## Installatie
+
+Vereist Node.js 18 of nieuwer.
 
 ```powershell
 cd ig-demo
-npm install
+npm ci
+Copy-Item .env.example .env
 ```
 
-## Snel starten
+Vul daarna minimaal deze waarden in:
 
-### Handmatig posten
-```powershell
-cd ig-demo
-npm run render-post
+```dotenv
+IG_USER_ID=
+IG_ACCESS_TOKEN=
+UPLOADCARE_PUBLIC_KEY=
+UPLOADCARE_SECRET_KEY=
+UPLOADCARE_SIGNED_UPLOADS=1
+JSON_SOURCE_PATH=./aanbod/kolibri-aanbod.json
+LISTING_BASE_URL=https://remaxdenhaag.nl
 ```
 
-### Automatisch posten bij nieuwe woningen
+`.env` en `output/` worden niet door Git gevolgd. Secrets horen alleen in de
+secret manager of omgevingsvariabelen van de productieserver.
+
+## Controleren
+
+Controleer de configuratie en Instagram-token:
+
 ```powershell
-cd ig-demo
+npm run validate-production
+```
+
+Render alles zonder upload of Instagram-publicatie:
+
+```powershell
+npm run dry-run
+```
+
+## Een woning publiceren
+
+Publiceer een specifieke woning:
+
+```powershell
+npm run post-listing -- 7687623
+```
+
+Dezelfde woning wordt niet tweemaal geplaatst. Alleen voor een bewuste repost:
+
+```powershell
+$env:FORCE_POST="1"
+npm run post-listing -- 7687623
+Remove-Item Env:FORCE_POST
+```
+
+## Koppeling met de makelaarswebsite
+
+Laat de website na het opslaan van een nieuwe woning een achtergrondtaak
+starten met:
+
+```text
+npm run post-listing -- <woning-id>
+```
+
+Voer dit niet uit binnen de webrequest zelf. Gebruik een job queue, worker,
+scheduled task of apart proces. De productie-run gebruikt een lock zodat nooit
+twee publicaties tegelijk dezelfde runtimebestanden kunnen gebruiken.
+
+De website moet de woning eerst aan de JSON-bron toevoegen. Voor een directe
+JSON-import is beschikbaar:
+
+```powershell
+node scripts/import-listing-file.js <pad-naar-woning-json>
+```
+
+## Automatische watcher
+
+Voor een server die de JSON-bron lokaal bijwerkt:
+
+```powershell
 npm run watch-kolibri
 ```
 
-## Belangrijkste scripts
-- `npm run render-post` ? apply ? render ? upload ? post
-- `npm run watch-kolibri` ? detecteert nieuwe listing(s) en post automatisch
-- `npm run view-log` ? bekijk logs (filters via .env)
+De watcher verwerkt nieuwe woningen op volgorde. `SKIP_INITIAL_POST=1` zorgt
+dat bestaande woningen bij de eerste start niet alsnog worden gepubliceerd.
 
-## Config (in `.env`)
-Belangrijkste velden:
+## Runtime en herstel
 
-```
-# Instagram Graph API
-IG_USER_ID=
-IG_ACCESS_TOKEN=
+- `output/runtime-config.json`: tijdelijke woningdata en geuploade URL's.
+- `output/published-listings.json`: register tegen dubbele publicaties.
+- `output/posting.lock`: voorkomt gelijktijdige runs.
+- `output/post-log.jsonl`: publicatie- en foutlog.
 
-# Uploadcare
-UPLOADCARE_PUBLIC_KEY=
-UPLOADCARE_STORE=1
-UPLOADCARE_CDN_BASE=https://ucarecdn.com
-UPLOADCARE_TRANSFORM=-/format/jpg/
+Bewaar `output/published-listings.json` op persistente opslag. Verlies van dit
+bestand kan dubbele posts veroorzaken. Gebruik bij containers of serverless
+hosting daarom een database of persistent volume.
 
-# Instagram carousel
-CAROUSEL_ENABLED=1
-CAROUSEL_EXTRA_PHOTOS=9
-CAROUSEL_OUTPUT_DIR=./output/carousel
-CAROUSEL_IMAGE_URLS=
+## Instagram-token
 
-# JSON bron
-JSON_SOURCE_PATH=./aanbod/kolibri-aanbod.json
-LISTING_ID=
-LISTING_QUERY=
+De productiecontrole valideert de token voor iedere run. Bij een verlopen token
+stopt de flow voordat afbeeldingen worden gerenderd of geupload. Vervang tokens
+via de secret manager; zet ze nooit in Git.
 
-# Watcher
-WATCH_INTERVAL_SECONDS=10
-SKIP_INITIAL_POST=1
-RETRY_COOLDOWN_SECONDS=60
-POST_DELAY_SECONDS=15
-```
+Wissel een nieuwe kortlevende token eenmalig om voor een beheerde long-lived
+token:
 
-## Logs
-Logs worden geschreven naar:
-
-```
-output/post-log.jsonl
-```
-
-Bekijk logs:
 ```powershell
-npm run view-log
+npm run exchange-token
 ```
 
-## Veelvoorkomende issues
+Hiervoor zijn `IG_ACCESS_TOKEN` en `IG_APP_SECRET` nodig. De long-lived token
+wordt in `output/instagram-token.json` opgeslagen en zeven dagen voor verloop
+automatisch vernieuwd. Bewaar dit bestand op persistente, afgeschermde opslag.
 
-**Carousel in plaats van enkele foto**
-- Met `CAROUSEL_ENABLED=1` wordt de IG-kaart de eerste slide.
-- Daarna worden maximaal `CAROUSEL_EXTRA_PHOTOS` collage-slides toegevoegd.
-- Elke collage-slide bevat maximaal drie woningfoto's en heeft hetzelfde formaat als de IG-kaart (`1080x1350`).
-- De slides wisselen tussen twee indelingen: groot boven met twee foto's onder, en twee foto's boven met een groot beeld onder.
-- Foto's vullen hun vak zonder vervaagde achtergrond; de uitsnede gebruikt aandachtspunt-detectie.
-- De eerste vier unieke foto's uit de makelaarsfeed worden voor de IG-kaart gereserveerd en niet opnieuw in de carousel gebruikt.
-- Bij minder beschikbare foto's wordt het aantal slides automatisch verlaagd en krijgt de laatste slide een passende layout.
-- De laatste slide is een vaste call-to-action met woningadres, telefoonnummer en `city@remax.nl`.
-- Met `carouselLastSlideImages` in een woningrecord kunnen maximaal drie belangrijke foto's bewust op de laatste fotocollage worden geplaatst.
-- Met `carouselLastSlideLayout: "two-top-one-bottom"` kan die fotoset twee beelden boven en een breed beeld onder gebruiken.
-- Met `carouselLastSlideHeroImage` wordt het belangrijkste overzichtsbeeld automatisch in het grote vak geplaatst, onafhankelijk van de bronvolgorde.
-- Instagram ondersteunt maximaal 10 slides, dus 1 kaart + maximaal 9 extra foto's.
-- Zet `CAROUSEL_ENABLED=0` om terug te gaan naar een enkele IG-card post.
+## Carousel
 
-**Caption te lang**
-- Description wordt automatisch samengevat zodat het onder 2200 tekens blijft.
+- De eerste vier unieke foto's worden voor de IG-card gereserveerd.
+- Gewone slides bevatten maximaal drie foto's.
+- Layouts wisselen tussen groot-boven en groot-onder.
+- De laatste slide is een CTA met het vaste kantoornummer en e-mailadres.
+- Een woning kan optioneel `carouselLastSlideImages`,
+  `carouselLastSlideLayout` en `carouselLastSlideHeroImage` bevatten.
 
-**IMAGE_URL niet geldig**
-- Controleer of Uploadcare URL een shard gebruikt (`*.ucarecd.net`).
-- Script volgt redirects en slaat de shard-URL automatisch op.
-
-**Watcher post direct bij start**
-- Zet `SKIP_INITIAL_POST=1` om dit te voorkomen.
-
----
-
-Gemaakt voor automatische Instagram-posting van woningaanbod.
+Instagram ondersteunt maximaal tien slides per carousel.
